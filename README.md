@@ -8,7 +8,7 @@ This repo packages two complementary skills:
   - Host hardening and OpenClaw deployment review
   - Covers OS posture, exposure, updates, backups, and OpenClaw-specific hardening touchpoints
 - **agent-security**
-  - Agent/runtime security review
+  - Agent and runtime security review
   - Covers approvals, allowlists, sandboxing, tool exposure, prompt injection, and trust boundaries
 
 ## Included skills
@@ -24,7 +24,7 @@ Use for:
 Use for:
 - runtime and approval-surface reviews
 - prompt-injection risk analysis
-- browser/web/tool exposure review
+- browser, web, and tool exposure review
 - sandboxing and small-model risk
 - personal vs shared runtime trust-boundary analysis
 
@@ -48,6 +48,14 @@ Rebuild distributable archives with:
 ```
 
 This writes packaged `.skill` archives into `dist/`.
+
+## What makes this repo useful
+
+- Progressive-disclosure skill design
+- Separation between host-security and agent-security concerns
+- Prompt-injection review guidance
+- Helper scripts for compact posture and audit summaries
+- GitHub-ready packaged `.skill` artifacts
 
 ## Notes
 
