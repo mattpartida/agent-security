@@ -49,6 +49,13 @@ Rebuild distributable archives with:
 
 This writes packaged `.skill` archives into `dist/`.
 
+## Quick install notes
+
+These skills are organized as OpenClaw-style AgentSkills. You can:
+- browse the skill folders directly
+- use the packaged `.skill` archives from `dist/`
+- adapt the helper scripts and references to your own security workflows
+
 ## What makes this repo useful
 
 - Progressive-disclosure skill design
