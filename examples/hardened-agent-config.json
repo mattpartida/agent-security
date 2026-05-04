@@ -1,0 +1,71 @@
+{
+  "tools": {
+    "exec": {
+      "enabled": false,
+      "security": "approval"
+    },
+    "elevated": {
+      "enabled": false,
+      "allowFrom": [
+        "local-admin"
+      ]
+    },
+    "fs": {
+      "workspaceOnly": true
+    },
+    "sandbox": {
+      "enabled": true
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "ssrfPolicy": {
+      "dangerouslyAllowPrivateNetwork": false
+    }
+  },
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "groupPolicy": "allowlist",
+      "execApprovals": {
+        "enabled": true,
+        "approvers": [
+          "owner"
+        ]
+      }
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "read-only-agent",
+      "match": {
+        "channel": "discord",
+        "peer": {
+          "kind": "dm"
+        }
+      }
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "openai/gpt-4.1"
+    },
+    "list": [
+      {
+        "id": "read-only-agent",
+        "model": "openai/gpt-4.1",
+        "tools": {
+          "web": {
+            "enabled": true
+          }
+        }
+      }
+    ]
+  },
+  "memory": {
+    "enabled": false
+  },
+  "cron": {
+    "enabled": false
+  }
+}
