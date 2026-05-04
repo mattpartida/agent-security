@@ -1,0 +1,45 @@
+{
+  "tools": {
+    "exec": {
+      "enabled": true,
+      "security": "full"
+    },
+    "elevated": {
+      "enabled": true
+    },
+    "fs": {
+      "workspaceOnly": false
+    }
+  },
+  "browser": {
+    "enabled": true,
+    "ssrfPolicy": {
+      "dangerouslyAllowPrivateNetwork": true
+    }
+  },
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "groupPolicy": "all"
+    }
+  },
+  "bindings": [
+    {
+      "agentId": "shared-agent",
+      "match": {
+        "channel": "discord",
+        "peer": {
+          "kind": "channel"
+        }
+      }
+    }
+  ],
+  "agents": {
+    "defaults": {
+      "model": "ollama/qwen2.5:7b"
+    }
+  },
+  "memory": {
+    "enabled": true
+  }
+}
