@@ -339,6 +339,7 @@ If prompt injection is part of the risk, also include:
 
 Use these helper resources when useful:
 - `references/prompt-injection.md`
+- `references/rules.md`
 - `scripts/config_risk_summary.py`
 - `scripts/score_prompt_injection_exposure.py`
 - `scripts/flag_prompt_injection_signals.py`

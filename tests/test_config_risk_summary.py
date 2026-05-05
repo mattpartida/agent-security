@@ -46,3 +46,24 @@ def test_compound_shared_channel_private_network_is_critical():
     proc = run_script(payload)
     data = json.loads(proc.stdout)
     assert any(f["risk"] == "shared_channel_with_private_network_browser" for f in data["findings"])
+
+
+def test_key_findings_include_stable_rule_ids():
+    payload = {
+        "channels": {"discord": {"enabled": True}},
+        "browser": {"enabled": True, "ssrfPolicy": {"dangerouslyAllowPrivateNetwork": True}},
+        "tools": {
+            "exec": {"security": "full"},
+            "elevated": {"enabled": True},
+        },
+        "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+        "memory": {"enabled": True},
+    }
+    proc = run_script(payload)
+    data = json.loads(proc.stdout)
+    findings_by_risk = {finding["risk"]: finding for finding in data["findings"]}
+    assert findings_by_risk["shared_channel_with_exec_surface"]["rule_id"] == "ASG-001"
+    assert findings_by_risk["browser_private_network_allowed"]["rule_id"] == "ASG-002"
+    assert findings_by_risk["persistence_available_in_untrusted_content_context"]["rule_id"] == "ASG-003"
+    assert findings_by_risk["elevated_enabled_without_allowlist"]["rule_id"] == "ASG-004"
+    assert findings_by_risk["exec_security_full"]["rule_id"] == "ASG-008"

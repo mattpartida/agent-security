@@ -67,6 +67,7 @@ Key files:
 
 - `skills/agent-security/SKILL.md` — operational audit checklist and report template
 - `skills/agent-security/references/prompt-injection.md` — prompt-injection probes and mitigations
+- `skills/agent-security/references/rules.md` — stable `ASG-###` rule IDs and mitigations
 - `skills/agent-security/scripts/config_risk_summary.py` — schema-tolerant config risk summary
 - `skills/agent-security/scripts/score_prompt_injection_exposure.py` — exposure scoring for agent configs
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
@@ -86,6 +87,8 @@ Use for:
 examples/
   high-risk-agent-config.json
   hardened-agent-config.json
+  reports/
+    high-risk-agent-security-review.md
 skills/
   agent-security/
     SKILL.md
@@ -107,6 +110,7 @@ tests/
 | --- | --- | --- |
 | `examples/high-risk-agent-config.json` | Demonstrates shared channel + exec + private-network browser + persistence risk | Critical/high findings |
 | `examples/hardened-agent-config.json` | Demonstrates a constrained, approval-gated, read-oriented setup | No high/critical findings |
+| `examples/reports/high-risk-agent-security-review.md` | Shows the recommended human-readable audit report format | Critical shared-runtime review with `ASG-###` rule IDs |
 
 ## Packaging
 
