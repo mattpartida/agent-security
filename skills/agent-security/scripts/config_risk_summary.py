@@ -94,11 +94,79 @@ def truthy(value: Any) -> bool:
     return value is True or (isinstance(value, str) and value.lower() in {"true", "yes", "enabled", "on"})
 
 
+def markdown_cell(value: Any, *, code: bool = False) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        text = ", ".join(str(item) for item in value)
+    else:
+        text = str(value)
+    text = text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
+    if code and text:
+        return f"`{text}`"
+    return text
+
+
+def render_markdown(summary: dict[str, Any]) -> str:
+    lines = ["# Agent Security Config Risk Summary", ""]
+    if summary["ok"]:
+        lines.append("**Overall:** no high/critical findings")
+    else:
+        lines.append("**Overall:** high risk findings present")
+    lines.append(f"**Risk count:** {summary['risk_count']}")
+    lines.append("")
+    lines.append("## Severity counts")
+    lines.append("")
+    if summary["counts"]:
+        for severity in ("error", "critical", "high", "warn", "info"):
+            count = summary["counts"].get(severity)
+            if count:
+                lines.append(f"- **{severity}:** {count}")
+    else:
+        lines.append("- No findings")
+    lines.append("")
+    lines.append("## Findings")
+    lines.append("")
+    findings = summary["findings"]
+    if not findings:
+        lines.append("No findings.")
+        lines.append("")
+        return "\n".join(lines)
+
+    lines.append("| Severity | Rule | Risk | Field | Recommendation |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    for finding in findings:
+        field = finding.get("field") or finding.get("fields") or ""
+        recommendation = finding.get("recommendation") or finding.get("reason") or ""
+        details = []
+        for key in ("agent", "index", "risk_class", "value", "expected"):
+            if key in finding:
+                details.append(f"{key}={finding[key]}")
+        if details:
+            recommendation = " — ".join(part for part in [str(recommendation), "; ".join(details)] if part)
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(finding.get("severity")),
+                    markdown_cell(finding.get("rule_id")),
+                    markdown_cell(finding.get("risk")),
+                    markdown_cell(field, code=bool(field)),
+                    markdown_cell(recommendation),
+                ]
+            )
+            + " |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strict", action="store_true", help="exit nonzero on error/high/critical findings")
     parser.add_argument("--fail-on", choices=["error", "critical", "high", "warn", "info"], default=None)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument("--format", choices=["json", "markdown"], default="json", help="output format (default: json)")
     args = parser.parse_args()
 
     cfg, initial_findings = load_json()
@@ -221,7 +289,10 @@ def main() -> int:
     }
     for f in findings:
         summary["counts"][f["severity"]] = summary["counts"].get(f["severity"], 0) + 1
-    print(json.dumps(summary, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    if args.format == "markdown":
+        print(render_markdown(summary))
+    else:
+        print(json.dumps(summary, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
 
     fail_on = args.fail_on or ("high" if args.strict else None)
     if fail_on:

@@ -36,6 +36,14 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
   < examples/high-risk-agent-config.json
 ```
 
+Emit a Markdown summary for PR comments, issue updates, or human-readable reports:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --format markdown \
+  < examples/high-risk-agent-config.json
+```
+
 Score prompt-injection exposure from a config/status JSON object:
 
 ```bash
