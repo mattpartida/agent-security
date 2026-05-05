@@ -67,3 +67,23 @@ def test_key_findings_include_stable_rule_ids():
     assert findings_by_risk["persistence_available_in_untrusted_content_context"]["rule_id"] == "ASG-003"
     assert findings_by_risk["elevated_enabled_without_allowlist"]["rule_id"] == "ASG-004"
     assert findings_by_risk["exec_security_full"]["rule_id"] == "ASG-008"
+
+
+def test_markdown_format_renders_summary_and_findings_table():
+    payload = {
+        "browser": {"enabled": True, "ssrfPolicy": {"dangerouslyAllowPrivateNetwork": True}},
+        "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+    }
+    proc = run_script(payload, "--format", "markdown")
+    assert proc.returncode == 0
+    assert proc.stdout.startswith("# Agent Security Config Risk Summary\n")
+    assert "**Overall:** high risk findings present" in proc.stdout
+    assert "| Severity | Rule | Risk | Field | Recommendation |" in proc.stdout
+    assert "| high | ASG-002 | browser_private_network_allowed | `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` |  |" in proc.stdout
+    assert "| critical | ASG-006 | shared_channel_with_private_network_browser |  |  |" in proc.stdout
+
+
+def test_markdown_format_escapes_table_pipes():
+    proc = run_script({"agents": {"list": [{"id": "agent|one", "tools": {"elevated": {"enabled": True}}}]}}, "--format", "markdown")
+    assert proc.returncode == 0
+    assert "agent\\|one" in proc.stdout
