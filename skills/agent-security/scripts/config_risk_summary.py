@@ -16,6 +16,26 @@ LOCAL_MODEL_MARKERS = ("ollama", "llama.cpp", "llamacpp", "mlx", "gguf", "local"
 SMALL_MODEL_MARKERS = ("haiku", "mini", "nano", "gemma", "phi", "qwen", "mistral")
 UNKNOWN_MODEL_MARKERS = ("custom", "unknown")
 
+RULE_IDS = {
+    "shared_channel_with_exec_surface": "ASG-001",
+    "browser_private_network_allowed": "ASG-002",
+    "persistence_available_in_untrusted_content_context": "ASG-003",
+    "elevated_enabled_without_allowlist": "ASG-004",
+    "agent_elevated_without_allowlist": "ASG-004",
+    "risky_agent_model_with_tools": "ASG-005",
+    "risky_default_model": "ASG-005",
+    "shared_channel_with_private_network_browser": "ASG-006",
+    "shared_channel_with_elevated_surface": "ASG-007",
+    "exec_security_full": "ASG-008",
+    "discord_exec_approvals_enabled_without_approvers": "ASG-009",
+    "discord_exec_approvals_missing": "ASG-010",
+    "filesystem_not_workspace_only": "ASG-011",
+    "sandbox_disabled": "ASG-012",
+    "exec_or_commands_without_owner_allow_from": "ASG-013",
+    "discord_group_chat_surface": "ASG-014",
+    "discord_channel_binding": "ASG-015",
+}
+
 
 def load_json() -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     raw = sys.stdin.read()
@@ -86,6 +106,9 @@ def main() -> int:
 
     def add(severity: str, risk: str, **extra: Any) -> None:
         item = {"severity": severity, "risk": risk}
+        rule_id = RULE_IDS.get(risk)
+        if rule_id:
+            item["rule_id"] = rule_id
         item.update(extra)
         findings.append(item)
 
