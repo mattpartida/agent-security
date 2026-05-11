@@ -20,6 +20,18 @@
       "expected_signals": ["encoded_instruction_candidate"]
     },
     {
+      "file": "zero-width-hidden.txt",
+      "kind": "obfuscated",
+      "flagged": true,
+      "expected_signals": ["zero_width_obfuscation"]
+    },
+    {
+      "file": "fake-approval-memory.txt",
+      "kind": "persistence",
+      "flagged": true,
+      "expected_signals": ["approval_bypass", "persistence_request"]
+    },
+    {
       "file": "benign-status-update.txt",
       "kind": "benign",
       "flagged": false,
