@@ -36,6 +36,99 @@ RULE_IDS = {
     "discord_channel_binding": "ASG-015",
 }
 
+RULE_METADATA = {
+    "ASG-001": {
+        "risk": "shared_channel_with_exec_surface",
+        "severity": "high",
+        "description": "A shared Discord/channel binding can reach shell/runtime execution.",
+        "help": "Separate shared agents from exec tools, or require strict sender-specific approvals and sandboxing.",
+    },
+    "ASG-002": {
+        "risk": "browser_private_network_allowed",
+        "severity": "high",
+        "description": "Browser SSRF policy allows localhost/RFC1918/private-network access.",
+        "help": "Disable private-network browser access unless explicitly required and isolated.",
+    },
+    "ASG-003": {
+        "risk": "persistence_available_in_untrusted_content_context",
+        "severity": "warn",
+        "description": "Persistence is available where untrusted content may be present.",
+        "help": "Require human review before persistence and isolate untrusted-content workflows.",
+    },
+    "ASG-004": {
+        "risk": "elevated_enabled_without_allowlist",
+        "severity": "high",
+        "description": "Elevated tools are enabled without a specific sender/resource allowlist.",
+        "help": "Add narrow sender-specific allowlists or disable elevated tools.",
+    },
+    "ASG-005": {
+        "risk": "risky_default_model",
+        "severity": "warn",
+        "description": "Small, local, cheap, custom, or unknown models are combined with defaults or tools.",
+        "help": "Use stronger models for high-risk tools, remove risky fallbacks, or narrow/sandbox tools.",
+    },
+    "ASG-006": {
+        "risk": "shared_channel_with_private_network_browser",
+        "severity": "critical",
+        "description": "Shared channel binding combines with private-network browser access.",
+        "help": "Split the runtime or disable private-network browsing for shared agents.",
+    },
+    "ASG-007": {
+        "risk": "shared_channel_with_elevated_surface",
+        "severity": "high",
+        "description": "Shared channel binding can reach elevated tools.",
+        "help": "Separate shared runtimes from elevated tools and use explicit sender approvals.",
+    },
+    "ASG-008": {
+        "risk": "exec_security_full",
+        "severity": "high",
+        "description": "Shell/runtime execution is configured as full/unrestricted.",
+        "help": "Use approval-gated or sandboxed execution, preferably workspace-scoped.",
+    },
+    "ASG-009": {
+        "risk": "discord_exec_approvals_enabled_without_approvers",
+        "severity": "high",
+        "description": "Discord exec approvals are enabled without explicit approvers.",
+        "help": "Configure explicit approvers by sender identity.",
+    },
+    "ASG-010": {
+        "risk": "discord_exec_approvals_missing",
+        "severity": "warn",
+        "description": "Discord is enabled with exec surface but no exec approval config was found.",
+        "help": "Add clear exec approval policy or remove exec from Discord-bound agents.",
+    },
+    "ASG-011": {
+        "risk": "filesystem_not_workspace_only",
+        "severity": "warn",
+        "description": "Filesystem access is broader than workspace-only.",
+        "help": "Prefer workspace-only file access for project and shared agents.",
+    },
+    "ASG-012": {
+        "risk": "sandbox_disabled",
+        "severity": "warn",
+        "description": "Sandbox config is present and explicitly disabled.",
+        "help": "Enable sandboxing for runtime, browser, and filesystem access where available.",
+    },
+    "ASG-013": {
+        "risk": "exec_or_commands_without_owner_allow_from",
+        "severity": "warn",
+        "description": "Exec/command surface exists without owner approver config.",
+        "help": "Configure owner/sender-specific approval sources.",
+    },
+    "ASG-014": {
+        "risk": "discord_group_chat_surface",
+        "severity": "info",
+        "description": "Discord group/channel surface is enabled.",
+        "help": "Treat group content as untrusted and tighten tools/approvals.",
+    },
+    "ASG-015": {
+        "risk": "discord_channel_binding",
+        "severity": "info",
+        "description": "An agent is bound to a Discord channel peer.",
+        "help": "Confirm the channel trust boundary and avoid ambient private credentials.",
+    },
+}
+
 
 def load_json() -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     raw = sys.stdin.read()
@@ -94,11 +187,174 @@ def truthy(value: Any) -> bool:
     return value is True or (isinstance(value, str) and value.lower() in {"true", "yes", "enabled", "on"})
 
 
+def markdown_cell(value: Any, *, code: bool = False) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple)):
+        text = ", ".join(str(item) for item in value)
+    else:
+        text = str(value)
+    text = text.replace("\\", "\\\\").replace("|", "\\|").replace("\n", "<br>")
+    if code and text:
+        return f"`{text}`"
+    return text
+
+
+def finding_evidence(finding: dict[str, Any]) -> Any:
+    return finding.get("evidence_paths") or finding.get("field") or finding.get("fields") or ""
+
+
+def finding_recommendation(finding: dict[str, Any]) -> str:
+    recommendation = finding.get("recommendation") or finding.get("reason") or ""
+    details = []
+    for key in ("agent", "index", "risk_class", "value", "expected", "model"):
+        if key in finding:
+            details.append(f"{key}={finding[key]}")
+    if details:
+        return " — ".join(part for part in [str(recommendation), "; ".join(details)] if part)
+    if finding.get("rule_id") in RULE_METADATA:
+        return RULE_METADATA[finding["rule_id"]]["help"]
+    return str(recommendation)
+
+
+def render_markdown(summary: dict[str, Any]) -> str:
+    lines = ["# Agent Security Config Risk Summary", ""]
+    counts = summary["counts"]
+    if counts.get("error") and not (counts.get("critical") or counts.get("high")):
+        lines.append("**Overall:** scanner input error")
+    else:
+        lines.append("**Overall:** no high/critical findings" if summary["ok"] else "**Overall:** high risk findings present")
+    lines.append(f"**Risk count:** {summary['risk_count']}")
+    lines.append("")
+    lines.append("## Severity counts")
+    lines.append("")
+    if summary["counts"]:
+        for severity in ("error", "critical", "high", "warn", "info"):
+            count = summary["counts"].get(severity)
+            if count:
+                lines.append(f"- **{severity}:** {count}")
+    else:
+        lines.append("- No findings")
+    lines.append("")
+    lines.append("## Findings")
+    lines.append("")
+    findings = summary["findings"]
+    if not findings:
+        lines.append("No findings.")
+        lines.append("")
+        return "\n".join(lines)
+
+    lines.append("| Severity | Rule | Risk | Evidence | Recommendation |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    for finding in findings:
+        evidence = finding_evidence(finding)
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(finding.get("severity")),
+                    markdown_cell(finding.get("rule_id")),
+                    markdown_cell(finding.get("risk")),
+                    markdown_cell(evidence, code=bool(evidence)),
+                    markdown_cell(finding_recommendation(finding)),
+                ]
+            )
+            + " |"
+        )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def sarif_level(severity: str) -> str:
+    return {
+        "error": "error",
+        "critical": "error",
+        "high": "error",
+        "warn": "warning",
+        "info": "note",
+    }.get(severity, "warning")
+
+
+def sarif_rule_id(finding: dict[str, Any]) -> str:
+    return finding.get("rule_id") or finding.get("risk", "agent-security-finding")
+
+
+def sarif_rule_metadata(rule_id: str, finding: dict[str, Any] | None = None) -> dict[str, str]:
+    if rule_id in RULE_METADATA:
+        return RULE_METADATA[rule_id]
+    risk = finding.get("risk", rule_id) if finding else rule_id
+    severity = finding.get("severity", "warn") if finding else "warn"
+    message = finding.get("message", risk) if finding else risk
+    return {"risk": risk, "severity": severity, "description": str(message), "help": "Review the scanner input and finding details."}
+
+
+def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
+    findings_by_rule_id = {sarif_rule_id(finding): finding for finding in summary["findings"]}
+    rules = []
+    for rule_id in sorted(findings_by_rule_id):
+        metadata = sarif_rule_metadata(rule_id, findings_by_rule_id[rule_id])
+        rules.append(
+            {
+                "id": rule_id,
+                "name": metadata["risk"],
+                "shortDescription": {"text": metadata["risk"]},
+                "fullDescription": {"text": metadata["description"]},
+                "help": {"text": metadata["help"]},
+                "properties": {"default_severity": metadata["severity"]},
+            }
+        )
+    results = []
+    for finding in summary["findings"]:
+        rule_id = sarif_rule_id(finding)
+        message_parts = [finding.get("risk", "unknown risk")]
+        recommendation = finding_recommendation(finding)
+        if recommendation:
+            message_parts.append(recommendation)
+        result = {
+            "ruleId": rule_id or finding.get("risk", "agent-security-finding"),
+            "level": sarif_level(finding.get("severity", "warn")),
+            "message": {"text": ": ".join(message_parts)},
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": "stdin"},
+                        "region": {"startLine": 1},
+                    }
+                }
+            ],
+            "properties": {
+                "severity": finding.get("severity"),
+                "risk": finding.get("risk"),
+                "evidence": finding_evidence(finding),
+            },
+        }
+        if rule_id:
+            result["properties"]["rule_id"] = rule_id
+        results.append(result)
+    return {
+        "$schema": "https://json.schemastore.org/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "agent-security config_risk_summary.py",
+                        "informationUri": "https://github.com/mattpartida/agent-security",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strict", action="store_true", help="exit nonzero on error/high/critical findings")
     parser.add_argument("--fail-on", choices=["error", "critical", "high", "warn", "info"], default=None)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument("--format", choices=["json", "markdown", "sarif"], default="json", help="output format")
     args = parser.parse_args()
 
     cfg, initial_findings = load_json()
@@ -221,7 +477,12 @@ def main() -> int:
     }
     for f in findings:
         summary["counts"][f["severity"]] = summary["counts"].get(f["severity"], 0) + 1
-    print(json.dumps(summary, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    if args.format == "markdown":
+        print(render_markdown(summary))
+    elif args.format == "sarif":
+        print(json.dumps(render_sarif(summary), separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    else:
+        print(json.dumps(summary, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
 
     fail_on = args.fail_on or ("high" if args.strict else None)
     if fail_on:

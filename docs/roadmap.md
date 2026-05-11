@@ -20,16 +20,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 1: Human-readable and machine-readable output formats
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Make scanner output easy to use in PR comments, Discord updates, issue triage, and GitHub Code Scanning.
 
-### Tasks
+### Shipped scope
 
-1. Add `--format json|markdown|sarif` to `skills/agent-security/scripts/config_risk_summary.py` while keeping JSON as the default.
-2. Emit markdown with a compact summary table, rule IDs, severity counts, evidence fields, and remediation guidance.
-3. Emit SARIF 2.1.0 with stable rule metadata derived from `skills/agent-security/references/rules.md`.
-4. Add tests that parse each output format and assert stable `ASG-###` rule IDs.
-5. Add README examples for markdown output and SARIF upload workflows.
+1. Added `--format json|markdown|sarif` to `skills/agent-security/scripts/config_risk_summary.py` while keeping JSON as the default.
+2. Added markdown output with severity counts, stable rule IDs, evidence fields, and remediation guidance.
+3. Added SARIF 2.1.0 output with emitted rule metadata and findings as SARIF results.
+4. Added tests that parse JSON/markdown/SARIF outputs and assert stable `ASG-###` rule IDs.
+5. Added README examples for markdown output and SARIF generation.
 
 ### Acceptance criteria
 

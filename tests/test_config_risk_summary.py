@@ -48,8 +48,8 @@ def test_compound_shared_channel_private_network_is_critical():
     assert any(f["risk"] == "shared_channel_with_private_network_browser" for f in data["findings"])
 
 
-def test_key_findings_include_stable_rule_ids():
-    payload = {
+def high_risk_payload():
+    return {
         "channels": {"discord": {"enabled": True}},
         "browser": {"enabled": True, "ssrfPolicy": {"dangerouslyAllowPrivateNetwork": True}},
         "tools": {
@@ -59,7 +59,10 @@ def test_key_findings_include_stable_rule_ids():
         "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
         "memory": {"enabled": True},
     }
-    proc = run_script(payload)
+
+
+def test_key_findings_include_stable_rule_ids():
+    proc = run_script(high_risk_payload())
     data = json.loads(proc.stdout)
     findings_by_risk = {finding["risk"]: finding for finding in data["findings"]}
     assert findings_by_risk["shared_channel_with_exec_surface"]["rule_id"] == "ASG-001"
@@ -67,3 +70,74 @@ def test_key_findings_include_stable_rule_ids():
     assert findings_by_risk["persistence_available_in_untrusted_content_context"]["rule_id"] == "ASG-003"
     assert findings_by_risk["elevated_enabled_without_allowlist"]["rule_id"] == "ASG-004"
     assert findings_by_risk["exec_security_full"]["rule_id"] == "ASG-008"
+
+
+def test_explicit_json_format_matches_default_json_output():
+    default_proc = run_script(high_risk_payload())
+    json_proc = run_script(high_risk_payload(), "--format", "json")
+    assert default_proc.returncode == 0
+    assert json_proc.returncode == 0
+    assert json.loads(json_proc.stdout) == json.loads(default_proc.stdout)
+
+
+def test_markdown_format_renders_summary_counts_and_findings_table():
+    proc = run_script(high_risk_payload(), "--format", "markdown")
+    assert proc.returncode == 0
+    assert proc.stdout.startswith("# Agent Security Config Risk Summary\n")
+    assert "**Overall:** high risk findings present" in proc.stdout
+    assert "**Risk count:**" in proc.stdout
+    assert "- **critical:** 1" in proc.stdout
+    assert "| Severity | Rule | Risk | Evidence | Recommendation |" in proc.stdout
+    assert "| high | ASG-002 | browser_private_network_allowed | `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` |" in proc.stdout
+    assert "| critical | ASG-006 | shared_channel_with_private_network_browser |" in proc.stdout
+
+
+def test_markdown_format_escapes_table_pipes():
+    proc = run_script({"agents": {"list": [{"id": "agent|one", "tools": {"elevated": {"enabled": True}}}]}}, "--format", "markdown")
+    assert proc.returncode == 0
+    assert "agent\\|one" in proc.stdout
+
+
+def test_sarif_format_emits_parseable_rule_metadata_and_results():
+    proc = run_script(high_risk_payload(), "--format", "sarif")
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    assert data["version"] == "2.1.0"
+    assert data["$schema"].endswith("sarif-schema-2.1.0.json")
+    run = data["runs"][0]
+    rules_by_id = {rule["id"]: rule for rule in run["tool"]["driver"]["rules"]}
+    assert "ASG-001" in rules_by_id
+    assert rules_by_id["ASG-001"]["shortDescription"]["text"] == "shared_channel_with_exec_surface"
+    assert rules_by_id["ASG-002"]["properties"]["default_severity"] == "high"
+    results = run["results"]
+    assert any(result["ruleId"] == "ASG-002" for result in results)
+    assert any(result["ruleId"] == "ASG-006" for result in results)
+    assert all(result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "stdin" for result in results)
+
+
+def test_sarif_format_includes_all_emitted_rule_ids_in_driver_rules():
+    proc = run_script(high_risk_payload(), "--format", "sarif")
+    data = json.loads(proc.stdout)
+    rules = {rule["id"] for rule in data["runs"][0]["tool"]["driver"]["rules"]}
+    result_rule_ids = {result["ruleId"] for result in data["runs"][0]["results"] if result.get("ruleId")}
+    assert result_rule_ids <= rules
+
+
+def test_markdown_error_only_input_reports_error_not_high_risk():
+    proc = run_script("", "--format", "markdown")
+    assert proc.returncode == 0
+    assert "**Overall:** scanner input error" in proc.stdout
+    assert "**Overall:** high risk findings present" not in proc.stdout
+    assert "| error |  | empty_input |" in proc.stdout
+
+
+def test_sarif_error_only_input_defines_synthetic_rule_metadata():
+    proc = run_script("not-json", "--format", "sarif")
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    run = data["runs"][0]
+    rules = {rule["id"] for rule in run["tool"]["driver"]["rules"]}
+    results = run["results"]
+    assert results[0]["ruleId"] == "invalid_json"
+    assert "invalid_json" in rules
+    assert results[0]["level"] == "error"
