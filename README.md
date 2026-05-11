@@ -126,10 +126,18 @@ skills/
     references/
     scripts/
 tests/
+  fixtures/
+    prompt-injection/
+      manifest.json
+      *.txt / *.json
   test_*.py
 .github/workflows/
   ci.yml
 ```
+
+## Prompt-injection fixture corpus
+
+`tests/fixtures/prompt-injection/` contains benign, direct, indirect, encoded, and high-risk config examples used as regression inputs for the signal scanners. The manifest documents each fixture's expected signals or score factors so new detector changes can expand coverage without losing known cases.
 
 ## Example config posture
 
