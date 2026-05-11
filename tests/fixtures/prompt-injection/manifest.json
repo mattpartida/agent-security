@@ -1,0 +1,41 @@
+{
+  "description": "Benign and malicious prompt-injection fixtures used as regression inputs for agent-security scanners. Strings are inert test data only.",
+  "cases": [
+    {
+      "file": "direct-override.txt",
+      "kind": "direct",
+      "flagged": true,
+      "expected_signals": ["override_instructions", "tool_coercion"]
+    },
+    {
+      "file": "indirect-webpage-exfiltration.txt",
+      "kind": "indirect",
+      "flagged": true,
+      "expected_signals": ["secret_exfiltration", "network_coercion", "approval_bypass"]
+    },
+    {
+      "file": "encoded-base64-instruction.txt",
+      "kind": "encoded",
+      "flagged": true,
+      "expected_signals": ["encoded_instruction_candidate"]
+    },
+    {
+      "file": "benign-status-update.txt",
+      "kind": "benign",
+      "flagged": false,
+      "expected_signals": []
+    },
+    {
+      "file": "high-risk-agent-config.json",
+      "kind": "config",
+      "expected_severities": ["high", "critical"],
+      "expected_factors": [
+        "discord_group_chat_surface",
+        "browser_private_network_allowed",
+        "exec_security_full",
+        "shared_channel_with_high_impact_tools",
+        "persistence_reachable_from_untrusted_content_context"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "channels": {"discord": {"enabled": true, "groupPolicy": "allowlist"}},
+  "browser": {"enabled": true, "ssrfPolicy": {"dangerouslyAllowPrivateNetwork": true}},
+  "tools": {
+    "exec": {"security": "full"},
+    "elevated": {"enabled": true},
+    "fs": {"workspaceOnly": false}
+  },
+  "agents": {"defaults": {"model": {"fallbacks": ["ollama/qwen2.5:7b"]}}},
+  "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+  "memory": {"enabled": true}
+}
