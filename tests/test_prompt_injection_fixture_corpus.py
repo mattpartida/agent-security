@@ -31,9 +31,27 @@ def test_prompt_injection_fixture_manifest_is_complete():
         for path in FIXTURE_DIR.glob(pattern)
         if path.name != "manifest.json"
     }
-    manifest_names = {case["file"] for case in manifest["cases"]}
+    cases = manifest["cases"]
+    manifest_names = {case["file"] for case in cases}
+    assert len(manifest_names) == len(cases), "manifest case files must be unique"
     assert manifest_names == fixture_names
-    assert {case["kind"] for case in manifest["cases"]} >= {"direct", "indirect", "encoded", "benign"}
+    assert {case["kind"] for case in cases} >= {
+        "direct",
+        "indirect",
+        "encoded",
+        "obfuscated",
+        "persistence",
+        "benign",
+    }
+    for case in cases:
+        path = FIXTURE_DIR / case["file"]
+        assert path.parent == FIXTURE_DIR, f"fixture paths must stay in corpus dir: {case['file']}"
+        if case["kind"] == "config":
+            assert case["expected_severities"]
+            assert case["expected_factors"]
+        else:
+            assert "flagged" in case
+            assert "expected_signals" in case
 
 
 def test_signal_scanner_detects_fixture_corpus_expected_signals():
