@@ -22,6 +22,30 @@ Stable rule IDs are emitted by `scripts/config_risk_summary.py` when a finding m
 | ASG-014 | `discord_group_chat_surface` | Info | Discord group/channel surface is enabled. | Treat group content as untrusted and tighten tools/approvals. |
 | ASG-015 | `discord_channel_binding` | Info | An agent is bound to a Discord channel peer. | Confirm the channel trust boundary and avoid ambient private credentials. |
 
+## Evidence paths and source locations
+
+Every `ASG-###` finding emitted by `scripts/config_risk_summary.py` includes at
+least one `evidence_paths` entry that points to the config/status field that
+caused the finding. Paths use dot notation for nested objects and zero-based
+array indexes for list entries, for example:
+
+- `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork`
+- `bindings[0].match.channel`
+- `agents.list[0].tools.elevated.allowFrom`
+
+Composite findings include all contributing fields, not just the final combined
+risk. For example, `ASG-006` combines a shared Discord channel binding path with
+the private-network browser path.
+
+Machine-readable JSON and SARIF outputs also include `source_locations` entries
+with each evidence path and an approximate one-based line number. The resolver is
+best-effort and dependency-light: it scans the original input text for
+JSON/YAML/TOML-like key names in path order. If a path cannot be resolved, such
+as a missing allowlist field that triggered a finding, the line falls back to
+`1` so downstream tools still receive a valid location. SARIF results choose the
+lowest resolved evidence line as `locations[].physicalLocation.region.startLine`
+and copy all paths into `properties.evidence_paths`.
+
 ## Severity guidance
 
 - **Critical** — dangerous cross-boundary combination likely to enable private-network access, exfiltration, or privileged action from a shared/untrusted surface.

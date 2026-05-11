@@ -53,6 +53,12 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
   > agent-security.sarif
 ```
 
+JSON, Markdown, and SARIF findings include `evidence_paths` such as
+`browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` or
+`bindings[0].match.peer.kind`. JSON and SARIF also include best-effort
+`source_locations` with approximate line numbers when the path can be resolved
+from the input text; unresolved paths fall back to line `1`.
+
 Score prompt-injection exposure from a config/status JSON object:
 
 ```bash

@@ -18,6 +18,10 @@ def run_script(payload, *args):
     return proc
 
 
+def pretty_json(payload):
+    return json.dumps(payload, indent=2)
+
+
 def test_empty_input_returns_json_error():
     proc = run_script("")
     assert proc.returncode == 0
@@ -72,6 +76,88 @@ def test_key_findings_include_stable_rule_ids():
     assert findings_by_risk["exec_security_full"]["rule_id"] == "ASG-008"
 
 
+def test_asg_findings_include_evidence_paths_and_best_effort_source_locations():
+    payload = high_risk_payload()
+    proc = run_script(pretty_json(payload))
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    asg_findings = [finding for finding in data["findings"] if finding.get("rule_id", "").startswith("ASG-")]
+    assert asg_findings
+    assert all(finding.get("evidence_paths") for finding in asg_findings)
+    assert all(finding.get("source_locations") for finding in asg_findings)
+
+    findings_by_risk = {finding["risk"]: finding for finding in asg_findings}
+    assert findings_by_risk["browser_private_network_allowed"]["evidence_paths"] == [
+        "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"
+    ]
+    browser_location = findings_by_risk["browser_private_network_allowed"]["source_locations"][0]
+    assert browser_location == {
+        "path": "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork",
+        "line": 10,
+    }
+
+    composite = findings_by_risk["shared_channel_with_private_network_browser"]
+    assert composite["evidence_paths"] == [
+        "bindings[0].match.channel",
+        "bindings[0].match.peer.kind",
+        "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork",
+    ]
+    assert {location["line"] for location in composite["source_locations"]} >= {10, 25, 27}
+
+
+def test_array_evidence_paths_use_indexes_and_unresolved_paths_fall_back_to_line_one():
+    payload = {"agents": {"list": [{"id": "agent-one", "tools": {"elevated": {"enabled": True}}}]}}
+    proc = run_script(pretty_json(payload))
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    finding = next(finding for finding in data["findings"] if finding["risk"] == "agent_elevated_without_allowlist")
+    assert finding["evidence_paths"] == ["agents.list[0].tools.elevated.allowFrom"]
+    assert finding["evidence"] == {"agent": "agent-one"}
+    assert finding["source_locations"] == [{"path": "agents.list[0].tools.elevated.allowFrom", "line": 1}]
+
+
+def test_binding_array_source_locations_respect_indexes():
+    payload = {
+        "bindings": [
+            {"agentId": "dm", "match": {"channel": "discord", "peer": {"kind": "dm"}}},
+            {"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}},
+        ]
+    }
+    proc = run_script(pretty_json(payload))
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    finding = next(finding for finding in data["findings"] if finding["risk"] == "discord_channel_binding")
+    assert finding["evidence_paths"] == ["bindings[1].match.channel", "bindings[1].match.peer.kind"]
+    assert finding["source_locations"] == [
+        {"path": "bindings[1].match.channel", "line": 15},
+        {"path": "bindings[1].match.peer.kind", "line": 17},
+    ]
+
+
+def test_composite_evidence_paths_use_causal_exec_and_elevated_fields():
+    payload = {
+        "tools": {
+            "exec": {"enabled": True},
+            "elevated": {"allowFrom": ["owner"]},
+        },
+        "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+    }
+    proc = run_script(pretty_json(payload))
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    findings_by_risk = {finding["risk"]: finding for finding in data["findings"]}
+    assert findings_by_risk["shared_channel_with_exec_surface"]["evidence_paths"] == [
+        "bindings[0].match.channel",
+        "bindings[0].match.peer.kind",
+        "tools.exec.enabled",
+    ]
+    assert findings_by_risk["shared_channel_with_elevated_surface"]["evidence_paths"] == [
+        "bindings[0].match.channel",
+        "bindings[0].match.peer.kind",
+        "tools.elevated.allowFrom",
+    ]
+
+
 def test_explicit_json_format_matches_default_json_output():
     default_proc = run_script(high_risk_payload())
     json_proc = run_script(high_risk_payload(), "--format", "json")
@@ -113,6 +199,41 @@ def test_sarif_format_emits_parseable_rule_metadata_and_results():
     assert any(result["ruleId"] == "ASG-002" for result in results)
     assert any(result["ruleId"] == "ASG-006" for result in results)
     assert all(result["locations"][0]["physicalLocation"]["artifactLocation"]["uri"] == "stdin" for result in results)
+
+
+def test_sarif_format_uses_best_effort_source_line_and_evidence_paths_properties():
+    proc = run_script(pretty_json(high_risk_payload()), "--format", "sarif")
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    results = data["runs"][0]["results"]
+    private_network = next(result for result in results if result["ruleId"] == "ASG-002")
+    assert private_network["locations"][0]["physicalLocation"]["region"]["startLine"] == 10
+    assert private_network["properties"]["evidence_paths"] == ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"]
+
+    composite = next(result for result in results if result["ruleId"] == "ASG-006")
+    assert composite["locations"][0]["physicalLocation"]["region"]["startLine"] == 10
+    assert composite["properties"]["evidence_paths"] == [
+        "bindings[0].match.channel",
+        "bindings[0].match.peer.kind",
+        "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork",
+    ]
+
+
+def test_sarif_source_line_uses_causal_elevated_field_in_composite_finding():
+    payload = {
+        "tools": {"elevated": {"enabled": True}},
+        "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+    }
+    proc = run_script(pretty_json(payload), "--format", "sarif")
+    assert proc.returncode == 0
+    data = json.loads(proc.stdout)
+    result = next(result for result in data["runs"][0]["results"] if result["ruleId"] == "ASG-007")
+    assert result["properties"]["source_locations"] == [
+        {"path": "bindings[0].match.channel", "line": 11},
+        {"path": "bindings[0].match.peer.kind", "line": 13},
+        {"path": "tools.elevated.enabled", "line": 4},
+    ]
+    assert result["locations"][0]["physicalLocation"]["region"]["startLine"] == 4
 
 
 def test_sarif_format_includes_all_emitted_rule_ids_in_driver_rules():

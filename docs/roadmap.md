@@ -39,16 +39,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 2: Evidence paths and source locations
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Help users trace each finding back to the relevant config field instead of manually hunting through large status dumps.
 
-### Tasks
+### Shipped scope
 
-1. Add `evidence_paths` to every `config_risk_summary.py` finding, including composite risks like shared channel + private-network browser.
-2. Add `evidence` objects where useful, including observed values, binding IDs, agent IDs, and model names.
-3. Add a helper that maps evidence paths to approximate line numbers for JSON, YAML, and TOML examples where feasible.
-4. Include evidence paths in markdown and SARIF output from Phase 1.
-5. Document evidence-path semantics in `skills/agent-security/references/rules.md`.
+1. Added `evidence_paths` to every `ASG-###` `config_risk_summary.py` finding, including composite risks like shared channel + private-network browser.
+2. Added structured `evidence` objects for useful observed details such as agent IDs, array indexes, model names, expected schema types, and observed values.
+3. Added best-effort source-location mapping that resolves evidence paths to approximate one-based line numbers in JSON/YAML/TOML-like input text, with line `1` fallback when unresolved.
+4. Included evidence paths and source locations in JSON and SARIF output, and evidence paths in Markdown output.
+5. Documented evidence-path semantics in `skills/agent-security/references/rules.md`.
 
 ### Acceptance criteria
 

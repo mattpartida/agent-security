@@ -130,17 +130,17 @@ RULE_METADATA = {
 }
 
 
-def load_json() -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+def load_json() -> tuple[dict[str, Any] | None, list[dict[str, Any]], str]:
     raw = sys.stdin.read()
     if not raw.strip():
-        return None, [{"severity": "error", "risk": "empty_input", "message": "expected JSON on stdin"}]
+        return None, [{"severity": "error", "risk": "empty_input", "message": "expected JSON on stdin"}], raw
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        return None, [{"severity": "error", "risk": "invalid_json", "message": str(exc)}]
+        return None, [{"severity": "error", "risk": "invalid_json", "message": str(exc)}], raw
     if not isinstance(data, dict):
-        return None, [{"severity": "error", "risk": "invalid_schema", "message": "top-level JSON value must be an object"}]
-    return data, []
+        return None, [{"severity": "error", "risk": "invalid_schema", "message": "top-level JSON value must be an object"}], raw
+    return data, [], raw
 
 
 def as_dict(value: Any) -> dict[str, Any]:
@@ -185,6 +185,112 @@ def classify_model(model: Any) -> tuple[str, str] | None:
 
 def truthy(value: Any) -> bool:
     return value is True or (isinstance(value, str) and value.lower() in {"true", "yes", "enabled", "on"})
+
+
+def evidence_paths_from_finding(finding: dict[str, Any]) -> list[str]:
+    paths = finding.get("evidence_paths") or finding.get("fields") or finding.get("field") or []
+    if isinstance(paths, str):
+        return [paths]
+    if isinstance(paths, list):
+        return [path for path in paths if isinstance(path, str) and path]
+    return []
+
+
+def split_path_part(part: str) -> tuple[str, int | None]:
+    match = re.fullmatch(r"([^\[]+)(?:\[(\d+)\])?", part)
+    if not match:
+        return part, None
+    index = int(match.group(2)) if match.group(2) is not None else None
+    return match.group(1), index
+
+
+def find_key(raw: str, key: str, start: int) -> re.Match[str] | None:
+    patterns = (f'"{re.escape(key)}"', rf"(?m)^\s*{re.escape(key)}\s*[:=]")
+    best_match = None
+    for pattern in patterns:
+        match = re.search(pattern, raw[start:])
+        if match and (best_match is None or match.start() < best_match.start()):
+            best_match = match
+    return best_match
+
+
+def find_array_item_start(raw: str, array_value_start: int, index: int) -> int | None:
+    bracket_start = raw.find("[", array_value_start)
+    if bracket_start == -1:
+        return None
+    bracket_depth = 0
+    object_depth = 0
+    item_index = -1
+    in_string = False
+    escaped = False
+    for pos in range(bracket_start, len(raw)):
+        char = raw[pos]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "[":
+            bracket_depth += 1
+        elif char == "]":
+            bracket_depth -= 1
+            if bracket_depth == 0:
+                return None
+        elif char == "{":
+            if bracket_depth == 1 and object_depth == 0:
+                item_index += 1
+                if item_index == index:
+                    return pos + 1
+            object_depth += 1
+        elif char == "}" and object_depth:
+            object_depth -= 1
+    return None
+
+
+def source_line_for_path(raw: str, path: str) -> int:
+    """Best-effort line resolver for JSON/YAML/TOML-like key paths.
+
+    This intentionally avoids adding parser dependencies. It walks path components in
+    order and resolves to the final component when the raw input text contains it;
+    unresolved paths fall back to line 1 so SARIF/JSON remain well-formed.
+    """
+    if not raw.strip() or not path:
+        return 1
+    search_from = 0
+    matched_at: int | None = None
+    for part in path.split("."):
+        key, index = split_path_part(part)
+        if not key:
+            continue
+        match = find_key(raw, key, search_from)
+        if match is None:
+            return 1
+        matched_at = search_from + match.start()
+        search_from = search_from + match.end()
+        if index is not None:
+            item_start = find_array_item_start(raw, search_from, index)
+            if item_start is None:
+                return 1
+            search_from = item_start
+    if matched_at is None:
+        return 1
+    return raw.count("\n", 0, matched_at) + 1
+
+
+def attach_evidence_metadata(finding: dict[str, Any], raw: str) -> dict[str, Any]:
+    paths = evidence_paths_from_finding(finding)
+    if paths:
+        finding["evidence_paths"] = paths
+        finding["source_locations"] = [{"path": path, "line": source_line_for_path(raw, path)} for path in paths]
+    evidence = {key: finding[key] for key in ("agent", "index", "risk_class", "value", "expected", "model") if key in finding}
+    if evidence:
+        finding["evidence"] = evidence
+    return finding
 
 
 def markdown_cell(value: Any, *, code: bool = False) -> str:
@@ -310,6 +416,9 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
         recommendation = finding_recommendation(finding)
         if recommendation:
             message_parts.append(recommendation)
+        source_locations = finding.get("source_locations") or []
+        resolved_lines = [location.get("line", 1) for location in source_locations if isinstance(location, dict) and location.get("line", 1) > 1]
+        source_line = min(resolved_lines) if resolved_lines else 1
         result = {
             "ruleId": rule_id or finding.get("risk", "agent-security-finding"),
             "level": sarif_level(finding.get("severity", "warn")),
@@ -318,14 +427,15 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
                 {
                     "physicalLocation": {
                         "artifactLocation": {"uri": "stdin"},
-                        "region": {"startLine": 1},
+                        "region": {"startLine": source_line},
                     }
                 }
             ],
             "properties": {
                 "severity": finding.get("severity"),
                 "risk": finding.get("risk"),
-                "evidence": finding_evidence(finding),
+                "evidence_paths": evidence_paths_from_finding(finding),
+                "source_locations": source_locations,
             },
         }
         if rule_id:
@@ -357,7 +467,7 @@ def main() -> int:
     parser.add_argument("--format", choices=["json", "markdown", "sarif"], default="json", help="output format")
     args = parser.parse_args()
 
-    cfg, initial_findings = load_json()
+    cfg, initial_findings, raw_input = load_json()
     findings: list[dict[str, Any]] = list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:
@@ -366,6 +476,7 @@ def main() -> int:
         if rule_id:
             item["rule_id"] = rule_id
         item.update(extra)
+        attach_evidence_metadata(item, raw_input)
         findings.append(item)
 
     if cfg is not None:
@@ -377,12 +488,22 @@ def main() -> int:
 
         exec_cfg = as_dict(tools.get("exec"))
         exec_security = exec_cfg.get("security")
-        exec_enabled = truthy(exec_cfg.get("enabled")) or exec_security in {"full", "approval", "ask"}
+        exec_enabled_paths = []
+        if truthy(exec_cfg.get("enabled")):
+            exec_enabled_paths.append("tools.exec.enabled")
+        if exec_security in {"full", "approval", "ask"}:
+            exec_enabled_paths.append("tools.exec.security")
+        exec_enabled = bool(exec_enabled_paths)
         if exec_security == "full":
             add("high", "exec_security_full", field="tools.exec.security", recommendation="Use approval-gated or sandboxed exec where possible")
 
         elevated = as_dict(tools.get("elevated"))
-        elevated_enabled = truthy(elevated.get("enabled")) or bool(elevated.get("allowFrom"))
+        elevated_paths = []
+        if truthy(elevated.get("enabled")):
+            elevated_paths.append("tools.elevated.enabled")
+        if elevated.get("allowFrom"):
+            elevated_paths.append("tools.elevated.allowFrom")
+        elevated_enabled = bool(elevated_paths)
         if elevated_enabled and not elevated.get("allowFrom"):
             add("high", "elevated_enabled_without_allowlist", field="tools.elevated.allowFrom")
 
@@ -417,48 +538,54 @@ def main() -> int:
 
         default_models = []
         default_model = get_path(cfg, "agents.defaults.model.default") or get_path(cfg, "agents.defaults.model.name") or get_path(cfg, "agents.defaults.model")
-        default_models.append(default_model)
-        default_models.extend(as_list(get_path(cfg, "agents.defaults.model.fallbacks", [])))
-        for model in default_models:
+        if default_model:
+            default_models.append((default_model, "agents.defaults.model"))
+        for idx, fallback_model in enumerate(as_list(get_path(cfg, "agents.defaults.model.fallbacks", []))):
+            default_models.append((fallback_model, f"agents.defaults.model.fallbacks[{idx}]"))
+        for model, model_path in default_models:
             cls = classify_model(model)
             if cls:
-                add("warn", "risky_default_model", model=model_to_str(model), risk_class=cls[0], reason=cls[1])
+                add("warn", "risky_default_model", field=model_path, model=model_to_str(model), risk_class=cls[0], reason=cls[1])
 
         agents = as_list(agents_root.get("list"))
         if agents_root.get("list") is not None and not isinstance(agents_root.get("list"), list):
             add("warn", "invalid_agents_list_schema", field="agents.list", expected="list")
         for idx, agent_raw in enumerate(agents):
             if not isinstance(agent_raw, dict):
-                add("warn", "invalid_agent_schema", index=idx, expected="object")
+                add("warn", "invalid_agent_schema", index=idx, expected="object", field=f"agents.list[{idx}]")
                 continue
             aid = agent_raw.get("id", f"index:{idx}")
             agent_tools = as_dict(agent_raw.get("tools"))
             agent_elevated = as_dict(agent_tools.get("elevated"))
             if truthy(agent_elevated.get("enabled")) and not agent_elevated.get("allowFrom"):
-                add("high", "agent_elevated_without_allowlist", agent=aid, field="agents.list[].tools.elevated.allowFrom")
+                add("high", "agent_elevated_without_allowlist", agent=aid, field=f"agents.list[{idx}].tools.elevated.allowFrom")
             agent_model = agent_raw.get("model") or get_path(agent_raw, "model.default")
             cls = classify_model(agent_model)
             if cls and agent_tools:
-                add("warn", "risky_agent_model_with_tools", agent=aid, model=model_to_str(agent_model), risk_class=cls[0])
+                add("warn", "risky_agent_model_with_tools", agent=aid, field=f"agents.list[{idx}].model", model=model_to_str(agent_model), risk_class=cls[0])
 
         bindings = as_list(cfg.get("bindings"))
         if cfg.get("bindings") is not None and not isinstance(cfg.get("bindings"), list):
             add("warn", "invalid_bindings_schema", field="bindings", expected="list")
         shared_binding = False
-        for b in bindings:
+        shared_binding_paths: list[str] = []
+        for idx, b in enumerate(bindings):
             if not isinstance(b, dict):
                 continue
             match = as_dict(b.get("match"))
             peer = as_dict(match.get("peer"))
             if match.get("channel") == "discord" and peer.get("kind") == "channel":
                 shared_binding = True
-                add("info", "discord_channel_binding", agent=b.get("agentId"), field="bindings")
+                binding_paths = [f"bindings[{idx}].match.channel", f"bindings[{idx}].match.peer.kind"]
+                shared_binding_paths.extend(binding_paths)
+                add("info", "discord_channel_binding", agent=b.get("agentId"), evidence_paths=binding_paths)
+        private_network_paths = ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"]
         if shared_binding and private_network:
-            add("critical", "shared_channel_with_private_network_browser")
+            add("critical", "shared_channel_with_private_network_browser", evidence_paths=shared_binding_paths + private_network_paths)
         if shared_binding and exec_enabled:
-            add("high", "shared_channel_with_exec_surface")
+            add("high", "shared_channel_with_exec_surface", evidence_paths=shared_binding_paths + exec_enabled_paths)
         if shared_binding and elevated_enabled:
-            add("high", "shared_channel_with_elevated_surface")
+            add("high", "shared_channel_with_elevated_surface", evidence_paths=shared_binding_paths + elevated_paths)
 
         persistence_paths = []
         for path in ("memory.enabled", "cron.enabled", "tools.memory.enabled", "tools.cron.enabled", "notes.enabled"):
