@@ -32,6 +32,12 @@
       "expected_signals": ["approval_bypass", "persistence_request"]
     },
     {
+      "file": "tool-output-exfiltration.txt",
+      "kind": "tool_output",
+      "flagged": true,
+      "expected_signals": ["secret_exfiltration", "network_coercion", "downstream_injection"]
+    },
+    {
       "file": "benign-status-update.txt",
       "kind": "benign",
       "flagged": false,

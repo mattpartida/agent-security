@@ -41,6 +41,7 @@ def test_prompt_injection_fixture_manifest_is_complete():
         "encoded",
         "obfuscated",
         "persistence",
+        "tool_output",
         "benign",
     }
     for case in cases:
@@ -83,3 +84,22 @@ def test_exposure_fixture_scores_high_risk_agent_config():
         assert data["severity"] in set(case["expected_severities"]), case["file"]
         factors = {factor["factor"] for factor in data["factors"]}
         assert set(case["expected_factors"]).issubset(factors), case["file"]
+
+
+def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
+    docs_path = ROOT / "docs" / "prompt-injection-detector-quality.md"
+    docs = docs_path.read_text(encoding="utf-8")
+    required_phrases = [
+        "false positives",
+        "false negatives",
+        "when to add a fixture",
+        "tool-output exfiltration",
+        "tests/fixtures/prompt-injection/manifest.json",
+    ]
+    for phrase in required_phrases:
+        assert phrase in docs.lower()
+
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    phase3 = roadmap.split("## Phase 3:", 1)[1].split("## Phase 4:", 1)[0]
+    assert "**Status:** Shipped" in phase3
+    assert "prompt-injection-detector-quality.md" in phase3

@@ -98,6 +98,7 @@ Key files:
 - `skills/agent-security/scripts/config_risk_summary.py` — schema-tolerant config risk summary
 - `skills/agent-security/scripts/score_prompt_injection_exposure.py` — exposure scoring for agent configs
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
+- `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
 
 ### `healthcheck`
 
