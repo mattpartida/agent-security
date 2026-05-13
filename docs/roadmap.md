@@ -58,7 +58,7 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 3: Prompt-injection fixture corpus and detector evaluation
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Turn prompt-injection examples into a reusable regression suite with clear expected signals and known limitations.
 
 ### Tasks
@@ -66,7 +66,7 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 1. Maintain a manifest-backed corpus under `tests/fixtures/prompt-injection/`.
 2. Cover direct override, indirect webpage content, encoded/base64 text, zero-width obfuscation, fake approvals, memory poisoning, tool-output exfiltration, benign negatives, and high-risk config examples.
 3. Add corpus tests that replay every text fixture through `flag_prompt_injection_signals.py` and every config fixture through exposure scoring.
-4. Add detector-quality documentation that names false positives, false negatives, and when to add a new fixture.
+4. Add detector-quality documentation in [`docs/prompt-injection-detector-quality.md`](prompt-injection-detector-quality.md) that names false positives, false negatives, and when to add a new fixture.
 5. Add a small corpus summary command or script once the manifest grows beyond a handful of cases.
 
 ### Acceptance criteria

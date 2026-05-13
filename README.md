@@ -98,6 +98,7 @@ Key files:
 - `skills/agent-security/scripts/config_risk_summary.py` — schema-tolerant config risk summary
 - `skills/agent-security/scripts/score_prompt_injection_exposure.py` — exposure scoring for agent configs
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
+- `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
 
 ### `healthcheck`
 
@@ -126,10 +127,18 @@ skills/
     references/
     scripts/
 tests/
+  fixtures/
+    prompt-injection/
+      manifest.json
+      *.txt / *.json
   test_*.py
 .github/workflows/
   ci.yml
 ```
+
+## Prompt-injection fixture corpus
+
+`tests/fixtures/prompt-injection/` contains benign, direct, indirect, encoded, and high-risk config examples used as regression inputs for the signal scanners. The manifest documents each fixture's expected signals or score factors so new detector changes can expand coverage without losing known cases.
 
 ## Example config posture
 
