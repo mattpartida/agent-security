@@ -78,14 +78,14 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 4: Real-world config-shape coverage
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Make the scripts resilient across Hermes/OpenClaw-style config shapes without hard-coding one schema.
 
 ### Tasks
 
 1. Add `examples/config-shapes/` with representative personal-local, Discord-shared, browser-agent, cron-memory-agent, and CI-only scanner configs.
 2. Add tests that run both config scripts across every example shape.
-3. Document which fields are canonical, aliases, and best-effort compatibility paths.
+3. Document canonical fields, aliases, and best-effort compatibility paths in [`docs/config-shapes.md`](config-shapes.md).
 4. Add malformed-but-safe examples for wrong types, missing optional sections, and unknown future keys.
 5. Keep invalid schema behavior non-crashing and explicit.
 

@@ -99,6 +99,7 @@ Key files:
 - `skills/agent-security/scripts/score_prompt_injection_exposure.py` — exposure scoring for agent configs
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
 - `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
+- `docs/config-shapes.md` — canonical config fields, supported aliases, and real-world fixture guidance
 
 ### `healthcheck`
 
@@ -115,6 +116,8 @@ Use for:
 examples/
   high-risk-agent-config.json
   hardened-agent-config.json
+  config-shapes/
+    *.json
   reports/
     high-risk-agent-security-review.md
 skills/
@@ -139,6 +142,10 @@ tests/
 ## Prompt-injection fixture corpus
 
 `tests/fixtures/prompt-injection/` contains benign, direct, indirect, encoded, and high-risk config examples used as regression inputs for the signal scanners. The manifest documents each fixture's expected signals or score factors so new detector changes can expand coverage without losing known cases.
+
+## Config-shape fixtures
+
+`examples/config-shapes/` contains representative personal-local, Discord-shared, browser-agent, cron-memory-agent, CI-only scanner, and malformed-but-safe configs. See [`docs/config-shapes.md`](docs/config-shapes.md) for the canonical fields, supported aliases, and best-effort compatibility paths to adapt your own config/status JSON.
 
 ## Example config posture
 

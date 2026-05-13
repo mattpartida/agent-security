@@ -1,0 +1,8 @@
+{
+  "name": "personal-local",
+  "description": "Hermes-like local personal agent with root model and toolset aliases.",
+  "model": "ollama/qwen2.5:7b",
+  "enabled_toolsets": ["terminal", "file"],
+  "approval_policy": "on-request",
+  "workspace": {"root": "/Users/example/project"}
+}

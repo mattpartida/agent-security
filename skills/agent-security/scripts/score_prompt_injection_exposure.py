@@ -60,12 +60,66 @@ def risky_model(model: Any) -> bool:
     return bool(text and (SMALL_MODEL_RE.search(text) or any(m in text for m in MODEL_MARKERS)))
 
 
+def set_path_default(obj: dict[str, Any], path: str, value: Any) -> None:
+    cur = obj
+    parts = path.split(".")
+    for part in parts[:-1]:
+        existing = cur.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            cur[part] = existing
+        cur = existing
+    cur.setdefault(parts[-1], value)
+
+
+def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
+    normalized = json.loads(json.dumps(config))
+
+    platforms = as_dict(normalized.get("platforms"))
+    platform_discord = as_dict(platforms.get("discord"))
+    if platform_discord:
+        discord = as_dict(get_path(normalized, "channels.discord", {})).copy()
+        for key, value in platform_discord.items():
+            discord.setdefault(key, value)
+        if "group_policy" in discord and "groupPolicy" not in discord:
+            discord["groupPolicy"] = discord["group_policy"]
+        if "exec_approvals" in discord and "execApprovals" not in discord:
+            discord["execApprovals"] = discord["exec_approvals"]
+        channels = as_dict(normalized.get("channels")).copy()
+        channels["discord"] = discord
+        normalized["channels"] = channels
+
+    browser = as_dict(normalized.get("browser"))
+    for alias in ("allowPrivateNetwork", "privateNetworkAccess", "dangerouslyAllowPrivateNetwork"):
+        if browser.get(alias) is True:
+            set_path_default(normalized, "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork", True)
+            break
+
+    toolset_values = as_list(normalized.get("enabled_toolsets")) + as_list(normalized.get("toolsets"))
+    toolset_names = {str(item).lower().replace("-", "_") for item in toolset_values}
+    if toolset_names & {"terminal", "shell", "exec", "command", "commands", "code", "code_execution"}:
+        set_path_default(normalized, "tools.exec.enabled", True)
+    if toolset_names & {"browser", "web", "web_browser"}:
+        set_path_default(normalized, "browser.enabled", True)
+    if toolset_names & {"memory", "persistent_memory"}:
+        set_path_default(normalized, "tools.memory.enabled", True)
+    if toolset_names & {"cron", "scheduled_jobs", "scheduler"}:
+        set_path_default(normalized, "tools.cron.enabled", True)
+
+    if normalized.get("model") is not None:
+        set_path_default(normalized, "agents.defaults.model", normalized["model"])
+
+    return normalized
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     args = parser.parse_args()
 
     cfg, factors = load_json()
+    if cfg is not None:
+        cfg = normalize_config_shape(cfg)
     score = 0
 
     def add(points: int, name: str, **extra: Any) -> None:

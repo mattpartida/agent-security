@@ -187,6 +187,63 @@ def truthy(value: Any) -> bool:
     return value is True or (isinstance(value, str) and value.lower() in {"true", "yes", "enabled", "on"})
 
 
+def set_path_default(obj: dict[str, Any], path: str, value: Any) -> None:
+    cur = obj
+    parts = path.split(".")
+    for part in parts[:-1]:
+        existing = cur.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            cur[part] = existing
+        cur = existing
+    cur.setdefault(parts[-1], value)
+
+
+def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
+    """Normalize common real-world aliases into the canonical scanner shape.
+
+    The original object is left untouched. Canonical fields win over aliases so
+    users can migrate gradually without surprising overrides.
+    """
+    normalized = json.loads(json.dumps(config))
+
+    platforms = as_dict(normalized.get("platforms"))
+    platform_discord = as_dict(platforms.get("discord"))
+    if platform_discord:
+        discord = as_dict(get_path(normalized, "channels.discord", {})).copy()
+        for key, value in platform_discord.items():
+            discord.setdefault(key, value)
+        if "group_policy" in discord and "groupPolicy" not in discord:
+            discord["groupPolicy"] = discord["group_policy"]
+        if "exec_approvals" in discord and "execApprovals" not in discord:
+            discord["execApprovals"] = discord["exec_approvals"]
+        channels = as_dict(normalized.get("channels")).copy()
+        channels["discord"] = discord
+        normalized["channels"] = channels
+
+    browser = as_dict(normalized.get("browser"))
+    for alias in ("allowPrivateNetwork", "privateNetworkAccess", "dangerouslyAllowPrivateNetwork"):
+        if browser.get(alias) is True:
+            set_path_default(normalized, "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork", True)
+            break
+
+    toolset_values = as_list(normalized.get("enabled_toolsets")) + as_list(normalized.get("toolsets"))
+    toolset_names = {str(item).lower().replace("-", "_") for item in toolset_values}
+    if toolset_names & {"terminal", "shell", "exec", "command", "commands", "code", "code_execution"}:
+        set_path_default(normalized, "tools.exec.enabled", True)
+    if toolset_names & {"browser", "web", "web_browser"}:
+        set_path_default(normalized, "browser.enabled", True)
+    if toolset_names & {"memory", "persistent_memory"}:
+        set_path_default(normalized, "tools.memory.enabled", True)
+    if toolset_names & {"cron", "scheduled_jobs", "scheduler"}:
+        set_path_default(normalized, "tools.cron.enabled", True)
+
+    if normalized.get("model") is not None:
+        set_path_default(normalized, "agents.defaults.model", normalized["model"])
+
+    return normalized
+
+
 def evidence_paths_from_finding(finding: dict[str, Any]) -> list[str]:
     paths = finding.get("evidence_paths") or finding.get("fields") or finding.get("field") or []
     if isinstance(paths, str):
@@ -259,27 +316,53 @@ def source_line_for_path(raw: str, path: str) -> int:
     order and resolves to the final component when the raw input text contains it;
     unresolved paths fall back to line 1 so SARIF/JSON remain well-formed.
     """
-    if not raw.strip() or not path:
-        return 1
-    search_from = 0
-    matched_at: int | None = None
-    for part in path.split("."):
-        key, index = split_path_part(part)
-        if not key:
-            continue
-        match = find_key(raw, key, search_from)
-        if match is None:
+
+    def resolve(candidate: str) -> int:
+        if not raw.strip() or not candidate:
             return 1
-        matched_at = search_from + match.start()
-        search_from = search_from + match.end()
-        if index is not None:
-            item_start = find_array_item_start(raw, search_from, index)
-            if item_start is None:
+        search_from = 0
+        matched_at: int | None = None
+        for part in candidate.split("."):
+            key, index = split_path_part(part)
+            if not key:
+                continue
+            match = find_key(raw, key, search_from)
+            if match is None:
                 return 1
-            search_from = item_start
-    if matched_at is None:
-        return 1
-    return raw.count("\n", 0, matched_at) + 1
+            matched_at = search_from + match.start()
+            search_from = search_from + match.end()
+            if index is not None:
+                item_start = find_array_item_start(raw, search_from, index)
+                if item_start is None:
+                    return 1
+                search_from = item_start
+        if matched_at is None:
+            return 1
+        return raw.count("\n", 0, matched_at) + 1
+
+    direct_line = resolve(path)
+    if direct_line > 1:
+        return direct_line
+    alias_paths = {
+        "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork": [
+            "browser.allowPrivateNetwork",
+            "browser.privateNetworkAccess",
+            "browser.dangerouslyAllowPrivateNetwork",
+        ],
+        "channels.discord.groupPolicy": ["platforms.discord.group_policy"],
+        "channels.discord.execApprovals": ["platforms.discord.exec_approvals"],
+        "channels.discord.execApprovals.approvers": ["platforms.discord.exec_approvals.approvers"],
+        "tools.exec.enabled": ["enabled_toolsets", "toolsets"],
+        "tools.memory.enabled": ["enabled_toolsets", "toolsets"],
+        "tools.cron.enabled": ["enabled_toolsets", "toolsets"],
+        "browser.enabled": ["enabled_toolsets", "toolsets"],
+        "agents.defaults.model": ["model"],
+    }
+    for alias_path in alias_paths.get(path, []):
+        alias_line = resolve(alias_path)
+        if alias_line > 1:
+            return alias_line
+    return direct_line
 
 
 def attach_evidence_metadata(finding: dict[str, Any], raw: str) -> dict[str, Any]:
@@ -468,6 +551,8 @@ def main() -> int:
     args = parser.parse_args()
 
     cfg, initial_findings, raw_input = load_json()
+    if cfg is not None:
+        cfg = normalize_config_shape(cfg)
     findings: list[dict[str, Any]] = list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:

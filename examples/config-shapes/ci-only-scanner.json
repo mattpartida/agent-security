@@ -1,0 +1,11 @@
+{
+  "name": "ci-only-scanner",
+  "description": "Read-only CI scanner config without agent runtime tool exposure.",
+  "ci": {
+    "githubActions": {
+      "permissions": {"contents": "read", "security-events": "write"},
+      "runsAgentSecurityScan": true
+    }
+  },
+  "unknownFutureSection": {"preserve": true}
+}
