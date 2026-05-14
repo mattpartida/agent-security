@@ -116,16 +116,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 6: CI and downstream integration examples
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Show users how to run the skillpack in their own repos and automation without granting unnecessary permissions.
 
-### Tasks
+### Shipped scope
 
-1. Add a GitHub Actions workflow example for strict config scanning and optional SARIF upload.
-2. Add examples for PR comment markdown, scheduled audits, and local preflight checks.
-3. Document minimal permissions for each workflow, especially `security-events: write` when SARIF upload is enabled.
-4. Add tests that parse workflow examples and assert safe permissions and expected commands.
-5. Add failure-mode notes for CI users, including when a high finding should block merges.
+1. Added [`examples/ci/github-actions/agent-security-strict.yml`](../examples/ci/github-actions/agent-security-strict.yml) for read-only, strict merge-blocking config scans.
+2. Added [`examples/ci/github-actions/agent-security-sarif.yml`](../examples/ci/github-actions/agent-security-sarif.yml) for optional SARIF upload with the required `security-events: write` permission.
+3. Added [`docs/ci-integration.md`](ci-integration.md) covering PR comment markdown, scheduled audits, local preflight checks, minimal permissions, and failure-mode triage.
+4. Added `tests/test_phase6_ci_integration_examples.py` to validate workflow example shape, expected commands, SARIF upload wiring, safe permissions, README links, and roadmap status.
+5. Kept quick-start documentation compact by pointing README readers to the dedicated integration guide and `examples/ci/github-actions/` directory.
 
 ### Acceptance criteria
 

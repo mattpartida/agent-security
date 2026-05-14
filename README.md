@@ -101,6 +101,7 @@ Key files:
 - `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
 - `docs/config-shapes.md` — canonical config fields, supported aliases, and real-world fixture guidance
 - `docs/rule-coverage.md` — Phase 5 rule coverage, severity rationale, and compensating controls for every `ASG-###` rule
+- `docs/ci-integration.md` — Phase 6 CI and downstream integration examples with minimal-permission GitHub Actions patterns
 
 ### `healthcheck`
 
@@ -121,6 +122,10 @@ examples/
     *.json
   reports/
     high-risk-agent-security-review.md
+  ci/
+    github-actions/
+      agent-security-strict.yml
+      agent-security-sarif.yml
 skills/
   agent-security/
     SKILL.md
@@ -155,6 +160,10 @@ tests/
 | `examples/high-risk-agent-config.json` | Demonstrates shared channel + exec + private-network browser + persistence risk | Critical/high findings |
 | `examples/hardened-agent-config.json` | Demonstrates a constrained, approval-gated, read-oriented setup | No high/critical findings |
 | `examples/reports/high-risk-agent-security-review.md` | Shows the recommended human-readable audit report format | Critical shared-runtime review with `ASG-###` rule IDs |
+
+## CI and downstream integrations
+
+Copyable downstream examples live in [`docs/ci-integration.md`](docs/ci-integration.md) and [`examples/ci/github-actions/`](examples/ci/github-actions/). They cover strict merge-blocking scans, optional SARIF upload, PR comment Markdown, scheduled audits, local preflight checks, and minimal GitHub Actions permissions.
 
 ## Packaging
 

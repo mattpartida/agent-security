@@ -1,0 +1,29 @@
+name: Agent Security Strict Scan
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  agent-security:
+    name: Strict agent config scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run strict agent-security scan
+        run: |
+          python3 skills/agent-security/scripts/config_risk_summary.py \
+            --strict \
+            < examples/high-risk-agent-config.json
