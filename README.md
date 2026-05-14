@@ -100,6 +100,7 @@ Key files:
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
 - `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
 - `docs/config-shapes.md` — canonical config fields, supported aliases, and real-world fixture guidance
+- `docs/rule-coverage.md` — Phase 5 rule coverage, severity rationale, and compensating controls for every `ASG-###` rule
 
 ### `healthcheck`
 

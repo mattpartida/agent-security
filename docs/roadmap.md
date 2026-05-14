@@ -97,16 +97,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 5: Rule coverage and severity calibration
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Make each `ASG-###` rule testable, explainable, and calibrated against both risky and hardened configurations.
 
-### Tasks
+### Shipped scope
 
-1. Add a rule-coverage table, likely `docs/rule-coverage.md`, mapping each `ASG-###` rule to risky and safe/negative fixtures.
-2. Add a focused test for every rule ID, including safe negative coverage where the risky field is absent or mitigated.
-3. Split broad rules only when the current `risk` key hides materially different mitigations.
-4. Add severity rationale and compensating-control guidance for each rule.
-5. Add a changelog note when a rule's severity or detection semantics changes.
+1. Added [`docs/rule-coverage.md`](rule-coverage.md), mapping every `ASG-###` rule to focused risky and safe/negative coverage.
+2. Added `tests/test_phase5_rule_coverage.py` with a focused risky and safe case for every stable rule ID from `ASG-001` through `ASG-015`, plus variant checks for multi-risk IDs `ASG-004` and `ASG-005`.
+3. Asserted each risky case emits the expected rule ID, severity, evidence path, and mitigation/recommendation field.
+4. Documented severity rationale and compensating-control guidance for every rule.
+5. No severity or detection semantics changed in Phase 5; JSON output gained additive metadata-backed `recommendation` text for ASG findings, so no changelog note was required.
 
 ### Acceptance criteria
 

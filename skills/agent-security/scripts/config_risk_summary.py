@@ -561,6 +561,8 @@ def main() -> int:
         if rule_id:
             item["rule_id"] = rule_id
         item.update(extra)
+        if rule_id and "recommendation" not in item:
+            item["recommendation"] = RULE_METADATA[rule_id]["help"]
         attach_evidence_metadata(item, raw_input)
         findings.append(item)
 
