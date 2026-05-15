@@ -154,16 +154,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 8: Healthcheck and agent-security boundary cleanup
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Clarify when to use `agent-security`, `healthcheck`, or both, especially for private-network/browser and host-exposure issues.
 
-### Tasks
+### Shipped scope
 
-1. Add a concise decision table to `skills/README.md` and the root README.
-2. Add cross-links between agent runtime findings and host hardening checks.
-3. Add example combined report snippets for browser private-network exposure on a shared host.
-4. Ensure healthcheck references do not duplicate agent-security rules unnecessarily.
-5. Add tests or text checks for broken cross-links if references grow.
+1. Added concise decision tables to `skills/README.md` and the root README so users can choose `agent-security`, `healthcheck`, or both from one table.
+2. Added [`docs/skill-boundary.md`](skill-boundary.md) with shared-concept ownership for SSRF, exposed services, cron, rollback, cross-skill handoff rules, and non-duplication guidance.
+3. Added [`examples/reports/combined-browser-private-network-boundary.md`](../examples/reports/combined-browser-private-network-boundary.md), a combined report snippet for browser private-network exposure on a shared host.
+4. Updated `skills/agent-security/SKILL.md` and `skills/healthcheck/SKILL.md` with cross-links and explicit `ASG-###` ownership boundaries so healthcheck references agent findings without duplicating them.
+5. Added `tests/test_phase8_skill_boundary.py` to verify decision tables, cross-links, combined report coverage, roadmap status, and dependency-light markdown link integrity.
 
 ### Acceptance criteria
 

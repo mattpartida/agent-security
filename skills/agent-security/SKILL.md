@@ -7,7 +7,7 @@ description: Review and harden OpenClaw/Hermes agent security, including tool pe
 
 Use this skill when the problem is mainly inside the agent runtime, not the host OS.
 
-If the user is asking about host firewall, SSH, disk encryption, OS updates, backups, or network exposure, use `healthcheck` instead or alongside this skill. Use both when host exposure and agent runtime exposure interact, for example browser private-network access on an internet-facing VPS.
+If the user is asking about host firewall, SSH, disk encryption, OS updates, backups, or network exposure, use `healthcheck` instead or alongside this skill. Use both when host exposure and agent runtime exposure interact, for example browser private-network access on an internet-facing VPS. See [`../../docs/skill-boundary.md`](../../docs/skill-boundary.md) for the ownership table and combined-review handoff rules. For shared browser/private-network findings, this skill owns `ASG-002` and `ASG-006`; `healthcheck` owns host network exposure, firewall, SSH, and rollback.
 
 ## Scope
 
