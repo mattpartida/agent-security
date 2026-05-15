@@ -135,16 +135,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 7: Packaging, release, and installation polish
 
-**Status:** Planned  
+**Status:** Shipped
 **Goal:** Make the skillpack straightforward to install, verify, version, and release.
 
-### Tasks
+### Shipped scope
 
-1. Add installation/import instructions for packaged `.skill` archives and source-tree usage.
-2. Add a release checklist that includes packaging, CI, rule-doc review, fixture review, and no-real-secret scans.
-3. Add package integrity checks such as archive contents tests for `dist/*.skill` outputs.
-4. Add versioning guidance for rule/schema changes.
-5. Add a `CHANGELOG.md` once releases become recurring.
+1. Added [`docs/installation-and-release.md`](installation-and-release.md) with installation/import instructions for packaged `.skill` archives and source-tree usage.
+2. Added a release checklist covering packaging, CI, rule-doc review, fixture review, archive inspection, and no-real-secret scans.
+3. Added `tests/test_phase7_packaging_release.py` to rebuild `dist/*.skill` archives and assert required files, zip integrity, safe archive paths, README links, roadmap status, and release-note categories.
+4. Added versioning guidance for rule/schema changes, script CLI changes, and documentation-only updates.
+5. Added [`CHANGELOG.md`](../CHANGELOG.md) with release-note categories that distinguish rule/schema changes, script CLI changes, and documentation-only updates.
 
 ### Acceptance criteria
 

@@ -175,6 +175,8 @@ Rebuild distributable archives with:
 
 This writes packaged `.skill` archives into `dist/`.
 
+Install from packaged archives by importing `dist/agent-security.skill` and `dist/healthcheck.skill` into an AgentSkills-compatible runtime, or inspect/use the source tree directly for local development. See [`docs/installation-and-release.md`](docs/installation-and-release.md) for install steps, archive inspection commands, release checklist, versioning guidance, and [`CHANGELOG.md`](CHANGELOG.md) release-note categories.
+
 ## Development
 
 Run local verification:
