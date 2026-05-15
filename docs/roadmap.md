@@ -171,6 +171,82 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 - Shared concepts such as SSRF, exposed services, cron, and rollback have clear ownership.
 - No conflicting mitigation language appears between the two skills.
 
+## Phase 9: Auditable baselines and suppressions
+
+**Status:** Shipped
+**Goal:** Let users adopt the scanner in existing repositories without hiding known findings or weakening default policy.
+
+### Shipped scope
+
+1. Added a `--baseline` flag for `config_risk_summary.py` that reads a dependency-light JSON baseline file.
+2. Suppresses only exact, auditable matches by stable `rule_id` and exact evidence path set.
+3. Preserves suppressed findings in machine-readable output under explicit `suppressed_findings` and `suppressed_summary` fields instead of deleting them silently.
+4. Recomputes `ok`, `risk_count`, severity counts, strict mode, and `--fail-on` behavior from active unsuppressed findings.
+5. Added [`docs/baselines.md`](baselines.md), [`examples/baselines/agent-security-baseline.json`](../examples/baselines/agent-security-baseline.json), README examples, and `tests/test_phase9_baselines.py`.
+
+### Acceptance criteria
+
+- A baseline entry for one evidence path does not suppress the same rule at a different path.
+- JSON output separates active findings from suppressed findings and includes suppression metadata.
+- Strict mode succeeds only when all high/critical findings are suppressed by exact baseline matches.
+
+## Phase 10: Policy files and severity overrides
+
+**Status:** Planned
+**Goal:** Support organization-specific rule policy while preserving stable default severities and auditability.
+
+### Tasks
+
+1. Add a `--policy` flag with JSON validation for disabled rules, severity overrides, and evidence-path allowlists.
+2. Keep default severities unchanged when no policy is supplied.
+3. Report policy-suppressed findings separately from baseline-suppressed findings.
+4. Document policy precedence and safe review patterns.
+5. Add fixtures and tests for invalid policy files and scoped allowlists.
+
+### Acceptance criteria
+
+- Invalid policy files fail before scanning with structured errors.
+- Severity overrides are visible in output and do not mutate static rule metadata.
+- Policy suppression is explicit and auditable.
+
+## Phase 11: Baseline lifecycle tooling
+
+**Status:** Planned
+**Goal:** Prevent suppressions from becoming permanent hidden risk.
+
+### Tasks
+
+1. Add `--generate-baseline` for current findings with TODO metadata.
+2. Require owner, ticket, reason, and `expires_at` metadata for lifecycle-aware suppressions.
+3. Surface stale and expired baseline entries distinctly.
+4. Add cleanup-oriented fail flags such as `--fail-on-stale-baseline` and `--fail-on-expired-baseline`.
+5. Add owner-grouped baseline summary output for CI review.
+
+### Acceptance criteria
+
+- Expired entries do not suppress active findings.
+- Stale entries are reported when they no longer match active findings.
+- Lifecycle fail flags only fail for their own condition.
+
+## Phase 12: Schema adapter expansion and compatibility contract
+
+**Status:** Planned
+**Goal:** Make scanner normalization explicit as support expands beyond current Hermes/OpenClaw-style shapes.
+
+### Tasks
+
+1. Report the selected schema adapter in JSON, Markdown, and SARIF properties.
+2. Add adapter-backed fixtures for OpenAI-compatible tool arrays, Claude Desktop/MCP server configs, and GitHub Actions automation snippets.
+3. Document unsupported fields and explicitly ignored capabilities.
+4. Add report stability guidance for `schema_version`, rule IDs, and evidence paths.
+5. Add cross-platform path serialization tests for future Windows/macOS CI expansion.
+
+### Acceptance criteria
+
+- Every adapter fixture asserts adapter name, expected findings, and safe negative coverage.
+- Unsupported fields are documented instead of guessed.
+- Report path serialization remains stable across platforms.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.
@@ -178,6 +254,7 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 3. Expand Phase 3 as new prompt-injection bypasses are found.
 4. Use Phases 4 and 5 to prevent schema and rule drift after output formats stabilize.
 5. Treat Phases 6 through 8 as repo credibility and adoption polish once scanner outputs are stable.
+6. Treat Phases 9 through 12 as adoption-at-scale work: baselines first, then policy, lifecycle cleanup, and broader schema adapters.
 
 ## Verification checklist for roadmap changes
 

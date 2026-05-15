@@ -36,6 +36,17 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
   < examples/high-risk-agent-config.json
 ```
 
+Adopt strict mode incrementally with an auditable baseline for already-reviewed findings:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --baseline examples/baselines/agent-security-baseline.json \
+  --strict \
+  < examples/high-risk-agent-config.json
+```
+
+See [`docs/baselines.md`](docs/baselines.md) for exact `rule_id` + evidence-path matching, `suppressed_findings`, and `suppressed_summary` semantics.
+
 Emit a Markdown summary for PR comments, issues, Discord updates, or human-readable reports:
 
 ```bash
@@ -113,6 +124,7 @@ Key files:
 - `docs/config-shapes.md` — canonical config fields, supported aliases, and real-world fixture guidance
 - `docs/rule-coverage.md` — Phase 5 rule coverage, severity rationale, and compensating controls for every `ASG-###` rule
 - `docs/ci-integration.md` — Phase 6 CI and downstream integration examples with minimal-permission GitHub Actions patterns
+- `docs/baselines.md` — Phase 9 auditable baseline suppressions with exact rule/evidence matching
 
 ### `healthcheck`
 
@@ -134,6 +146,8 @@ Boundary guide:
 examples/
   high-risk-agent-config.json
   hardened-agent-config.json
+  baselines/
+    agent-security-baseline.json
   config-shapes/
     *.json
   reports/

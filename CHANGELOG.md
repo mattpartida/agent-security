@@ -8,14 +8,15 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Rule or schema changes
 
-- No rule ID, severity, schema, or detection-semantics changes in the Phase 7 packaging polish batch.
+- Added additive JSON output fields `suppressed_findings` and `suppressed_summary` for Phase 9 baseline suppressions.
+- No rule ID or default severity changes in the Phase 9 baseline batch.
 
 ### Script CLI changes
 
-- No script CLI changes in the Phase 7 packaging polish batch.
+- Added `--baseline <path>` to `skills/agent-security/scripts/config_risk_summary.py` for exact, auditable `rule_id` + evidence-path suppressions.
 
 ### Documentation-only updates
 
-- Added `docs/installation-and-release.md` with packaged archive installation, source-tree usage, archive integrity, release checklist, no-real-secret scan, and versioning guidance.
-- Added package archive integrity coverage in `tests/test_phase7_packaging_release.py`.
-- Updated README and roadmap links for installation and release guidance.
+- Added `docs/baselines.md` and `examples/baselines/agent-security-baseline.json` for baseline usage, review cadence, and suppression removal guidance.
+- Added a post-Phase-8 roadmap covering Phase 9 through Phase 12 adoption-at-scale work.
+- Added Phase 9 regression coverage in `tests/test_phase9_baselines.py`.

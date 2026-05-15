@@ -477,6 +477,86 @@ def sarif_rule_metadata(rule_id: str, finding: dict[str, Any] | None = None) -> 
     return {"risk": risk, "severity": severity, "description": str(message), "help": "Review the scanner input and finding details."}
 
 
+def baseline_error(message: str, path: str | None = None) -> dict[str, Any]:
+    finding: dict[str, Any] = {"severity": "error", "risk": "invalid_baseline", "message": message}
+    if path:
+        finding["field"] = path
+    return finding
+
+
+def load_baseline(path: str | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not path:
+        return [], []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            baseline = json.load(fh)
+    except OSError as exc:
+        return [], [baseline_error(f"could not read baseline: {exc}", path)]
+    except json.JSONDecodeError as exc:
+        return [], [baseline_error(f"invalid baseline JSON: {exc}", path)]
+
+    if not isinstance(baseline, dict):
+        return [], [baseline_error("baseline top-level value must be an object", path)]
+    suppressions = baseline.get("suppressions")
+    if not isinstance(suppressions, list):
+        return [], [baseline_error("baseline must contain a suppressions list", "suppressions")]
+
+    valid: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for idx, entry in enumerate(suppressions):
+        entry_path = f"suppressions[{idx}]"
+        if not isinstance(entry, dict):
+            errors.append(baseline_error("baseline suppression must be an object", entry_path))
+            continue
+        rule_id = entry.get("rule_id")
+        evidence_paths = entry.get("evidence_paths")
+        if not isinstance(rule_id, str) or not rule_id.startswith("ASG-"):
+            errors.append(baseline_error("baseline suppression requires stable ASG rule_id", f"{entry_path}.rule_id"))
+            continue
+        if not isinstance(evidence_paths, list) or not all(isinstance(item, str) and item for item in evidence_paths):
+            errors.append(baseline_error("baseline suppression requires non-empty evidence_paths list", f"{entry_path}.evidence_paths"))
+            continue
+        valid.append(entry)
+    return valid, errors
+
+
+def suppression_matches(finding: dict[str, Any], suppression: dict[str, Any]) -> bool:
+    if finding.get("rule_id") != suppression.get("rule_id"):
+        return False
+    finding_paths = set(evidence_paths_from_finding(finding))
+    suppression_paths = set(suppression.get("evidence_paths", []))
+    return bool(finding_paths) and finding_paths == suppression_paths
+
+
+def apply_baseline_suppressions(
+    findings: list[dict[str, Any]], suppressions: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    active: list[dict[str, Any]] = []
+    suppressed: list[dict[str, Any]] = []
+    for finding in findings:
+        matched = next((suppression for suppression in suppressions if suppression_matches(finding, suppression)), None)
+        if matched:
+            item = dict(finding)
+            item["suppression"] = {
+                key: matched[key]
+                for key in ("owner", "reason", "ticket", "expires_at")
+                if key in matched
+            }
+            suppressed.append(item)
+        else:
+            active.append(finding)
+    return active, suppressed
+
+
+def count_by_severity(findings: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for finding in findings:
+        severity = finding.get("severity")
+        if isinstance(severity, str):
+            counts[severity] = counts.get(severity, 0) + 1
+    return counts
+
+
 def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
     findings_by_rule_id = {sarif_rule_id(finding): finding for finding in summary["findings"]}
     rules = []
@@ -548,12 +628,14 @@ def main() -> int:
     parser.add_argument("--fail-on", choices=["error", "critical", "high", "warn", "info"], default=None)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     parser.add_argument("--format", choices=["json", "markdown", "sarif"], default="json", help="output format")
+    parser.add_argument("--baseline", help="path to an auditable JSON baseline of exact rule/evidence suppressions")
     args = parser.parse_args()
 
+    baseline_suppressions, baseline_errors = load_baseline(args.baseline)
     cfg, initial_findings, raw_input = load_json()
     if cfg is not None:
         cfg = normalize_config_shape(cfg)
-    findings: list[dict[str, Any]] = list(initial_findings)
+    findings: list[dict[str, Any]] = list(baseline_errors) + list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:
         item = {"severity": severity, "risk": risk}
@@ -681,16 +763,20 @@ def main() -> int:
         if persistence_paths and (shared_binding or browser_enabled or discord_enabled):
             add("warn", "persistence_available_in_untrusted_content_context", fields=persistence_paths)
 
+    active_findings, suppressed_findings = apply_baseline_suppressions(findings, baseline_suppressions)
     severity_order = {"error": 5, "critical": 4, "high": 3, "warn": 2, "info": 1}
     summary = {
         "schema_version": SCHEMA_VERSION,
-        "ok": not any(f["severity"] in {"error", "critical", "high"} for f in findings),
-        "risk_count": len(findings),
-        "counts": {},
-        "findings": findings,
+        "ok": not any(f["severity"] in {"error", "critical", "high"} for f in active_findings),
+        "risk_count": len(active_findings),
+        "counts": count_by_severity(active_findings),
+        "findings": active_findings,
+        "suppressed_findings": suppressed_findings,
+        "suppressed_summary": {
+            "count": len(suppressed_findings),
+            "counts": count_by_severity(suppressed_findings),
+        },
     }
-    for f in findings:
-        summary["counts"][f["severity"]] = summary["counts"].get(f["severity"], 0) + 1
     if args.format == "markdown":
         print(render_markdown(summary))
     elif args.format == "sarif":
@@ -701,7 +787,7 @@ def main() -> int:
     fail_on = args.fail_on or ("high" if args.strict else None)
     if fail_on:
         threshold = severity_order[fail_on]
-        if any(severity_order.get(f["severity"], 0) >= threshold for f in findings):
+        if any(severity_order.get(f["severity"], 0) >= threshold for f in active_findings):
             return 1
     return 0
 

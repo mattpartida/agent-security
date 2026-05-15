@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "suppressions": [
+    {
+      "rule_id": "ASG-002",
+      "evidence_paths": ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"],
+      "owner": "security-team",
+      "reason": "Temporary exception while private-network browser access is migrated into an isolated profile.",
+      "ticket": "SEC-123",
+      "expires_at": "2026-06-30"
+    }
+  ]
+}
