@@ -192,20 +192,20 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 10: Policy files and severity overrides
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Support organization-specific rule policy while preserving stable default severities and auditability.
 
-### Tasks
+### Shipped scope
 
-1. Add a `--policy` flag with JSON validation for disabled rules, severity overrides, and evidence-path allowlists.
-2. Keep default severities unchanged when no policy is supplied.
-3. Report policy-suppressed findings separately from baseline-suppressed findings.
-4. Document policy precedence and safe review patterns.
-5. Add fixtures and tests for invalid policy files and scoped allowlists.
+1. Added a `--policy` flag for dependency-light JSON policy files with validation for `severity_overrides`, `disabled_rules`, and exact evidence-path `allowlists`.
+2. Kept default rule metadata unchanged when no policy is supplied; policy severity overrides are visible on findings as additive `policy.severity_override` metadata while SARIF rule metadata still reports default severity.
+3. Reported policy-suppressed findings separately from baseline suppressions under `policy_suppressed_findings` and `policy_suppressed_summary`.
+4. Documented policy precedence and safe review patterns in [`docs/policies.md`](policies.md), with an example at [`examples/policies/agent-security-policy.json`](../examples/policies/agent-security-policy.json).
+5. Added `tests/test_phase10_policies.py` covering severity overrides, disabled-rule suppression, exact allowlist matching, invalid policy failures, docs/examples, and roadmap status.
 
 ### Acceptance criteria
 
-- Invalid policy files fail before scanning with structured errors.
+- Invalid policy files fail before scanning with structured `invalid_policy` findings.
 - Severity overrides are visible in output and do not mutate static rule metadata.
 - Policy suppression is explicit and auditable.
 

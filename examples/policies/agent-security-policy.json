@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "metadata": {
+    "owner": "security-team",
+    "reason": "Example organization policy for staged scanner adoption.",
+    "ticket": "SEC-123"
+  },
+  "severity_overrides": {
+    "ASG-002": "warn"
+  },
+  "disabled_rules": [
+    "ASG-014"
+  ],
+  "allowlists": [
+    {
+      "rule_id": "ASG-002",
+      "evidence_paths": [
+        "browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"
+      ],
+      "reason": "Temporary exception for an isolated local browser-only profile.",
+      "owner": "platform-security",
+      "ticket": "SEC-456"
+    }
+  ]
+}

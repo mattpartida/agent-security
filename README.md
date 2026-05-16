@@ -47,6 +47,17 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
 
 See [`docs/baselines.md`](docs/baselines.md) for exact `rule_id` + evidence-path matching, `suppressed_findings`, and `suppressed_summary` semantics.
 
+Apply an organization policy for severity overrides, disabled rules, or exact evidence-path allowlists:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --policy examples/policies/agent-security-policy.json \
+  --strict \
+  < examples/high-risk-agent-config.json
+```
+
+See [`docs/policies.md`](docs/policies.md) for policy validation, `policy_suppressed_findings`, `policy_suppressed_summary`, and precedence with baselines.
+
 Emit a Markdown summary for PR comments, issues, Discord updates, or human-readable reports:
 
 ```bash
@@ -125,6 +136,7 @@ Key files:
 - `docs/rule-coverage.md` — Phase 5 rule coverage, severity rationale, and compensating controls for every `ASG-###` rule
 - `docs/ci-integration.md` — Phase 6 CI and downstream integration examples with minimal-permission GitHub Actions patterns
 - `docs/baselines.md` — Phase 9 auditable baseline suppressions with exact rule/evidence matching
+- `docs/policies.md` — Phase 10 organization policy files for severity overrides, disabled rules, and exact allowlists
 
 ### `healthcheck`
 

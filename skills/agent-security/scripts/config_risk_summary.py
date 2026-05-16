@@ -477,11 +477,22 @@ def sarif_rule_metadata(rule_id: str, finding: dict[str, Any] | None = None) -> 
     return {"risk": risk, "severity": severity, "description": str(message), "help": "Review the scanner input and finding details."}
 
 
-def baseline_error(message: str, path: str | None = None) -> dict[str, Any]:
-    finding: dict[str, Any] = {"severity": "error", "risk": "invalid_baseline", "message": message}
+VALID_SEVERITIES = {"error", "critical", "high", "warn", "info"}
+
+
+def structured_error(risk: str, message: str, path: str | None = None) -> dict[str, Any]:
+    finding: dict[str, Any] = {"severity": "error", "risk": risk, "message": message}
     if path:
         finding["field"] = path
     return finding
+
+
+def baseline_error(message: str, path: str | None = None) -> dict[str, Any]:
+    return structured_error("invalid_baseline", message, path)
+
+
+def policy_error(message: str, path: str | None = None) -> dict[str, Any]:
+    return structured_error("invalid_policy", message, path)
 
 
 def load_baseline(path: str | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -520,12 +531,132 @@ def load_baseline(path: str | None) -> tuple[list[dict[str, Any]], list[dict[str
     return valid, errors
 
 
+def load_policy(path: str | None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    empty = {"severity_overrides": {}, "disabled_rules": [], "allowlists": [], "metadata": {}}
+    if not path:
+        return empty, []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            policy = json.load(fh)
+    except OSError as exc:
+        return empty, [policy_error(f"could not read policy: {exc}", path)]
+    except json.JSONDecodeError as exc:
+        return empty, [policy_error(f"invalid policy JSON: {exc}", path)]
+
+    if not isinstance(policy, dict):
+        return empty, [policy_error("policy top-level value must be an object", path)]
+
+    errors: list[dict[str, Any]] = []
+    severity_overrides = policy.get("severity_overrides", {})
+    if not isinstance(severity_overrides, dict):
+        errors.append(policy_error("policy severity_overrides must be an object", "severity_overrides"))
+        severity_overrides = {}
+    else:
+        for rule_id, severity in severity_overrides.items():
+            if not isinstance(rule_id, str) or not rule_id.startswith("ASG-"):
+                errors.append(policy_error("policy severity override keys must be stable ASG rule IDs", f"severity_overrides.{rule_id}"))
+                continue
+            if severity not in VALID_SEVERITIES:
+                choices = ", ".join(sorted(VALID_SEVERITIES))
+                errors.append(policy_error(f"policy severity override for {rule_id} must be one of: {choices}", f"severity_overrides.{rule_id}"))
+
+    disabled_rules = policy.get("disabled_rules", [])
+    if not isinstance(disabled_rules, list) or not all(isinstance(item, str) and item.startswith("ASG-") for item in disabled_rules):
+        errors.append(policy_error("policy disabled_rules must be a list of ASG rule IDs", "disabled_rules"))
+        disabled_rules = []
+
+    allowlists = policy.get("allowlists", [])
+    if not isinstance(allowlists, list):
+        errors.append(policy_error("policy allowlists must be a list", "allowlists"))
+        allowlists = []
+    else:
+        for idx, entry in enumerate(allowlists):
+            entry_path = f"allowlists[{idx}]"
+            if not isinstance(entry, dict):
+                errors.append(policy_error("policy allowlist entry must be an object", entry_path))
+                continue
+            rule_id = entry.get("rule_id")
+            evidence_paths = entry.get("evidence_paths")
+            if not isinstance(rule_id, str) or not rule_id.startswith("ASG-"):
+                errors.append(policy_error("policy allowlist entry requires stable ASG rule_id", f"{entry_path}.rule_id"))
+            if not isinstance(evidence_paths, list) or not all(isinstance(item, str) and item for item in evidence_paths):
+                errors.append(policy_error("policy allowlist entry requires non-empty evidence_paths list", f"{entry_path}.evidence_paths"))
+
+    metadata = policy.get("metadata", {})
+    if not isinstance(metadata, dict):
+        errors.append(policy_error("policy metadata must be an object", "metadata"))
+        metadata = {}
+
+    normalized = {
+        "severity_overrides": severity_overrides,
+        "disabled_rules": disabled_rules,
+        "allowlists": allowlists,
+        "metadata": metadata,
+    }
+    return normalized, errors
+
+
 def suppression_matches(finding: dict[str, Any], suppression: dict[str, Any]) -> bool:
     if finding.get("rule_id") != suppression.get("rule_id"):
         return False
     finding_paths = set(evidence_paths_from_finding(finding))
     suppression_paths = set(suppression.get("evidence_paths", []))
     return bool(finding_paths) and finding_paths == suppression_paths
+
+
+def apply_policy_severity_overrides(findings: list[dict[str, Any]], policy: dict[str, Any]) -> list[dict[str, Any]]:
+    overrides = policy.get("severity_overrides", {})
+    updated: list[dict[str, Any]] = []
+    for finding in findings:
+        rule_id = finding.get("rule_id")
+        override = overrides.get(rule_id)
+        if override and finding.get("severity") != override:
+            item = dict(finding)
+            previous = item.get("severity")
+            item["severity"] = override
+            policy_meta = dict(item.get("policy", {}))
+            policy_meta["severity_override"] = {"from": previous, "to": override}
+            item["policy"] = policy_meta
+            updated.append(item)
+        else:
+            updated.append(finding)
+    return updated
+
+
+def policy_suppression_metadata(suppression_type: str, source: dict[str, Any], policy: dict[str, Any]) -> dict[str, Any]:
+    metadata = {"suppression_type": suppression_type}
+    for key in ("owner", "reason", "ticket", "expires_at"):
+        if key in source:
+            metadata[key] = source[key]
+        elif key in policy.get("metadata", {}):
+            metadata[key] = policy["metadata"][key]
+    return metadata
+
+
+def apply_policy_suppressions(
+    findings: list[dict[str, Any]], policy: dict[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    disabled_rules = set(policy.get("disabled_rules", []))
+    allowlists = policy.get("allowlists", [])
+    active: list[dict[str, Any]] = []
+    suppressed: list[dict[str, Any]] = []
+    for finding in findings:
+        matched: tuple[str, dict[str, Any]] | None = None
+        rule_id = finding.get("rule_id")
+        if rule_id in disabled_rules:
+            matched = ("disabled_rule", {"rule_id": rule_id})
+        else:
+            allowlist = next((entry for entry in allowlists if suppression_matches(finding, entry)), None)
+            if allowlist:
+                matched = ("allowlist", allowlist)
+        if matched:
+            item = dict(finding)
+            suppression_type, source = matched
+            item["policy"] = policy_suppression_metadata(suppression_type, source, policy)
+            suppressed.append(item)
+        else:
+            active.append(finding)
+    return active, suppressed
 
 
 def apply_baseline_suppressions(
@@ -601,6 +732,8 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
                 "source_locations": source_locations,
             },
         }
+        if finding.get("policy"):
+            result["properties"]["policy"] = finding["policy"]
         if rule_id:
             result["properties"]["rule_id"] = rule_id
         results.append(result)
@@ -629,13 +762,15 @@ def main() -> int:
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
     parser.add_argument("--format", choices=["json", "markdown", "sarif"], default="json", help="output format")
     parser.add_argument("--baseline", help="path to an auditable JSON baseline of exact rule/evidence suppressions")
+    parser.add_argument("--policy", help="path to an auditable JSON policy for severity overrides, disabled rules, and allowlists")
     args = parser.parse_args()
 
+    policy, policy_errors = load_policy(args.policy)
     baseline_suppressions, baseline_errors = load_baseline(args.baseline)
     cfg, initial_findings, raw_input = load_json()
-    if cfg is not None:
+    if cfg is not None and not policy_errors:
         cfg = normalize_config_shape(cfg)
-    findings: list[dict[str, Any]] = list(baseline_errors) + list(initial_findings)
+    findings: list[dict[str, Any]] = list(policy_errors) + list(baseline_errors) + list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:
         item = {"severity": severity, "risk": risk}
@@ -648,7 +783,7 @@ def main() -> int:
         attach_evidence_metadata(item, raw_input)
         findings.append(item)
 
-    if cfg is not None:
+    if cfg is not None and not policy_errors:
         tools = as_dict(cfg.get("tools"))
         browser = as_dict(cfg.get("browser"))
         commands = as_dict(cfg.get("commands"))
@@ -763,7 +898,9 @@ def main() -> int:
         if persistence_paths and (shared_binding or browser_enabled or discord_enabled):
             add("warn", "persistence_available_in_untrusted_content_context", fields=persistence_paths)
 
-    active_findings, suppressed_findings = apply_baseline_suppressions(findings, baseline_suppressions)
+    findings = apply_policy_severity_overrides(findings, policy)
+    policy_active_findings, policy_suppressed_findings = apply_policy_suppressions(findings, policy)
+    active_findings, suppressed_findings = apply_baseline_suppressions(policy_active_findings, baseline_suppressions)
     severity_order = {"error": 5, "critical": 4, "high": 3, "warn": 2, "info": 1}
     summary = {
         "schema_version": SCHEMA_VERSION,
@@ -771,6 +908,11 @@ def main() -> int:
         "risk_count": len(active_findings),
         "counts": count_by_severity(active_findings),
         "findings": active_findings,
+        "policy_suppressed_findings": policy_suppressed_findings,
+        "policy_suppressed_summary": {
+            "count": len(policy_suppressed_findings),
+            "counts": count_by_severity(policy_suppressed_findings),
+        },
         "suppressed_findings": suppressed_findings,
         "suppressed_summary": {
             "count": len(suppressed_findings),
