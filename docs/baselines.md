@@ -35,15 +35,10 @@ Required fields:
 
 - exact `rule_id`, such as `ASG-002`
 - at least one exact `evidence_paths` entry
+- non-empty `owner`, `ticket`, and `reason`
+- valid ISO `expires_at` date (`YYYY-MM-DD`)
 
-Strongly recommended review metadata:
-
-- `owner`
-- `reason`
-- `ticket`
-- `expires_at`
-
-Lifecycle enforcement for owner/ticket/expiry is planned for Phase 11. Phase 9 keeps the format dependency-light and validates the fields required for exact matching.
+See [`baseline-lifecycle.md`](baseline-lifecycle.md) for `--generate-baseline`, expired/stale suppression handling, owner-grouped lifecycle output, and cleanup fail flags.
 
 ## Output contract
 
@@ -52,6 +47,7 @@ When a baseline is supplied, JSON output contains active and suppressed findings
 - `findings` — active findings that still affect `ok`, `risk_count`, `counts`, `--strict`, and `--fail-on`
 - `suppressed_findings` — matching findings retained for audit, each with a `suppression` object copied from baseline metadata
 - `suppressed_summary` — suppressed count and severity counts
+- `baseline_lifecycle` — active, expired, and stale suppression entries plus `owner_summary` counts
 
 A suppression never deletes evidence. It moves a finding into an explicit audit field.
 

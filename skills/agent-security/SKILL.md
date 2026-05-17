@@ -352,6 +352,8 @@ Example usage:
 # Expected input: JSON config/status object on stdin
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --policy examples/policies/agent-security-policy.json
+openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --generate-baseline > agent-security-baseline.json
+openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --baseline agent-security-baseline.json --fail-on-expired-baseline
 openclaw status --deep --json | python3 skills/agent-security/scripts/score_prompt_injection_exposure.py
 
 # Expected input: untrusted or suspicious text on stdin

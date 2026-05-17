@@ -211,16 +211,16 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 11: Baseline lifecycle tooling
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Prevent suppressions from becoming permanent hidden risk.
 
-### Tasks
+### Shipped scope
 
-1. Add `--generate-baseline` for current findings with TODO metadata.
-2. Require owner, ticket, reason, and `expires_at` metadata for lifecycle-aware suppressions.
-3. Surface stale and expired baseline entries distinctly.
-4. Add cleanup-oriented fail flags such as `--fail-on-stale-baseline` and `--fail-on-expired-baseline`.
-5. Add owner-grouped baseline summary output for CI review.
+1. Added `--generate-baseline` to emit current findings as a baseline skeleton with TODO owner, ticket, reason, and ISO expiry metadata.
+2. Required lifecycle metadata (`owner`, `ticket`, `reason`, and `expires_at`) for baseline suppressions, failing closed with structured `invalid_baseline` findings when metadata is missing or malformed.
+3. Added `baseline_lifecycle` JSON output with distinct `active`, `expired`, `stale`, and owner-grouped `owner_summary` sections.
+4. Ensured expired entries do not suppress matching active findings, while stale non-expired entries are reported separately for cleanup.
+5. Added cleanup fail flags `--fail-on-stale-baseline` and `--fail-on-expired-baseline`, plus [`docs/baseline-lifecycle.md`](baseline-lifecycle.md) and `tests/test_phase11_baseline_lifecycle.py`.
 
 ### Acceptance criteria
 

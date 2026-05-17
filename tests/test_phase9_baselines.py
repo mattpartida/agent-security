@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,15 @@ def write_baseline(tmp_path: Path, entries: list[dict]) -> Path:
     return path
 
 
+def lifecycle_metadata() -> dict[str, str]:
+    return {
+        "reason": "Tracked legacy browser config while the team migrates shared profiles.",
+        "owner": "security-team",
+        "ticket": "SEC-123",
+        "expires_at": (date.today() + timedelta(days=30)).isoformat(),
+    }
+
+
 def test_baseline_suppresses_exact_rule_and_evidence_path(tmp_path: Path) -> None:
     baseline = write_baseline(
         tmp_path,
@@ -45,8 +55,7 @@ def test_baseline_suppresses_exact_rule_and_evidence_path(tmp_path: Path) -> Non
             {
                 "rule_id": "ASG-002",
                 "evidence_paths": ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"],
-                "reason": "Tracked legacy browser config while the team migrates shared profiles.",
-                "owner": "security-team",
+                **lifecycle_metadata(),
             }
         ],
     )
@@ -72,8 +81,7 @@ def test_baseline_does_not_suppress_same_rule_at_different_evidence_path(tmp_pat
             {
                 "rule_id": "ASG-006",
                 "evidence_paths": ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"],
-                "reason": "Only the browser field was reviewed; the shared binding was not reviewed.",
-                "owner": "security-team",
+                **lifecycle_metadata(),
             }
         ],
     )

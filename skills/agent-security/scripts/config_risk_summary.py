@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 import sys
+from datetime import date, timedelta
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
@@ -491,6 +492,19 @@ def baseline_error(message: str, path: str | None = None) -> dict[str, Any]:
     return structured_error("invalid_baseline", message, path)
 
 
+def is_non_empty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def parse_iso_date(value: Any) -> date | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 def policy_error(message: str, path: str | None = None) -> dict[str, Any]:
     return structured_error("invalid_policy", message, path)
 
@@ -526,6 +540,22 @@ def load_baseline(path: str | None) -> tuple[list[dict[str, Any]], list[dict[str
             continue
         if not isinstance(evidence_paths, list) or not all(isinstance(item, str) and item for item in evidence_paths):
             errors.append(baseline_error("baseline suppression requires non-empty evidence_paths list", f"{entry_path}.evidence_paths"))
+            continue
+        missing_metadata = [
+            key
+            for key in ("owner", "ticket", "reason")
+            if not is_non_empty_string(entry.get(key))
+        ]
+        if missing_metadata:
+            errors.append(
+                baseline_error(
+                    f"baseline suppression requires non-empty {missing_metadata[0]}",
+                    f"{entry_path}.{missing_metadata[0]}",
+                )
+            )
+            continue
+        if parse_iso_date(entry.get("expires_at")) is None:
+            errors.append(baseline_error("baseline suppression requires ISO expires_at date", f"{entry_path}.expires_at"))
             continue
         valid.append(entry)
     return valid, errors
@@ -602,6 +632,76 @@ def suppression_matches(finding: dict[str, Any], suppression: dict[str, Any]) ->
     finding_paths = set(evidence_paths_from_finding(finding))
     suppression_paths = set(suppression.get("evidence_paths", []))
     return bool(finding_paths) and finding_paths == suppression_paths
+
+
+def suppression_owner(suppression: dict[str, Any]) -> str:
+    owner = suppression.get("owner")
+    return owner.strip() if isinstance(owner, str) and owner.strip() else "unowned"
+
+
+def empty_baseline_lifecycle() -> dict[str, Any]:
+    return {"active": [], "expired": [], "stale": [], "owner_summary": {}}
+
+
+def summarize_baseline_lifecycle(lifecycle: dict[str, Any]) -> dict[str, Any]:
+    owner_summary: dict[str, dict[str, int]] = {}
+    for state in ("active", "expired", "stale"):
+        for item in lifecycle[state]:
+            owner = suppression_owner(item.get("suppression", item))
+            owner_summary.setdefault(owner, {"active": 0, "expired": 0, "stale": 0})[state] += 1
+    lifecycle["owner_summary"] = owner_summary
+    return lifecycle
+
+
+def classify_baseline_lifecycle(
+    findings: list[dict[str, Any]], suppressions: list[dict[str, Any]], today: date | None = None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    today = today or date.today()
+    lifecycle = empty_baseline_lifecycle()
+    active_suppressions: list[dict[str, Any]] = []
+    for suppression in suppressions:
+        matched_finding = next((finding for finding in findings if suppression_matches(finding, suppression)), None)
+        expires_on = parse_iso_date(suppression.get("expires_at"))
+        if expires_on is not None and expires_on < today:
+            item = dict(suppression)
+            item["suppression"] = suppression
+            if matched_finding:
+                item["finding"] = matched_finding
+            lifecycle["expired"].append(item)
+        elif matched_finding:
+            item = dict(suppression)
+            item["suppression"] = suppression
+            item["finding"] = matched_finding
+            lifecycle["active"].append(item)
+            active_suppressions.append(suppression)
+        else:
+            lifecycle["stale"].append(suppression)
+    return active_suppressions, summarize_baseline_lifecycle(lifecycle)
+
+
+def generate_baseline(findings: list[dict[str, Any]]) -> dict[str, Any]:
+    suppressions = []
+    seen: set[tuple[str, tuple[str, ...]]] = set()
+    for finding in findings:
+        rule_id = finding.get("rule_id")
+        evidence_paths = evidence_paths_from_finding(finding)
+        if not isinstance(rule_id, str) or not evidence_paths:
+            continue
+        key = (rule_id, tuple(sorted(evidence_paths)))
+        if key in seen:
+            continue
+        seen.add(key)
+        suppressions.append(
+            {
+                "rule_id": rule_id,
+                "evidence_paths": evidence_paths,
+                "owner": "TODO-owner",
+                "ticket": "TODO-ticket",
+                "reason": "TODO document why this finding is accepted temporarily.",
+                "expires_at": (date.today() + timedelta(days=30)).isoformat(),
+            }
+        )
+    return {"version": 1, "generated_by": "config_risk_summary.py", "suppressions": suppressions}
 
 
 def apply_policy_severity_overrides(findings: list[dict[str, Any]], policy: dict[str, Any]) -> list[dict[str, Any]]:
@@ -763,6 +863,9 @@ def main() -> int:
     parser.add_argument("--format", choices=["json", "markdown", "sarif"], default="json", help="output format")
     parser.add_argument("--baseline", help="path to an auditable JSON baseline of exact rule/evidence suppressions")
     parser.add_argument("--policy", help="path to an auditable JSON policy for severity overrides, disabled rules, and allowlists")
+    parser.add_argument("--generate-baseline", action="store_true", help="emit a baseline for current findings with TODO lifecycle metadata")
+    parser.add_argument("--fail-on-stale-baseline", action="store_true", help="exit nonzero when baseline entries no longer match findings")
+    parser.add_argument("--fail-on-expired-baseline", action="store_true", help="exit nonzero when baseline entries are expired")
     args = parser.parse_args()
 
     policy, policy_errors = load_policy(args.policy)
@@ -900,7 +1003,11 @@ def main() -> int:
 
     findings = apply_policy_severity_overrides(findings, policy)
     policy_active_findings, policy_suppressed_findings = apply_policy_suppressions(findings, policy)
-    active_findings, suppressed_findings = apply_baseline_suppressions(policy_active_findings, baseline_suppressions)
+    if args.generate_baseline:
+        print(json.dumps(generate_baseline(policy_active_findings), separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+        return 0
+    active_baseline_suppressions, baseline_lifecycle = classify_baseline_lifecycle(policy_active_findings, baseline_suppressions)
+    active_findings, suppressed_findings = apply_baseline_suppressions(policy_active_findings, active_baseline_suppressions)
     severity_order = {"error": 5, "critical": 4, "high": 3, "warn": 2, "info": 1}
     summary = {
         "schema_version": SCHEMA_VERSION,
@@ -913,6 +1020,7 @@ def main() -> int:
             "count": len(policy_suppressed_findings),
             "counts": count_by_severity(policy_suppressed_findings),
         },
+        "baseline_lifecycle": baseline_lifecycle,
         "suppressed_findings": suppressed_findings,
         "suppressed_summary": {
             "count": len(suppressed_findings),
@@ -931,6 +1039,10 @@ def main() -> int:
         threshold = severity_order[fail_on]
         if any(severity_order.get(f["severity"], 0) >= threshold for f in active_findings):
             return 1
+    if args.fail_on_stale_baseline and baseline_lifecycle["stale"]:
+        return 1
+    if args.fail_on_expired_baseline and baseline_lifecycle["expired"]:
+        return 1
     return 0
 
 
