@@ -488,6 +488,46 @@ def finding_recommendation(finding: dict[str, Any]) -> str:
     return str(recommendation)
 
 
+def markdown_count_summary(summary: dict[str, Any]) -> str:
+    count = int(summary.get("count", 0))
+    counts = summary.get("counts", {}) if isinstance(summary.get("counts"), dict) else {}
+    if not counts:
+        return str(count)
+    parts = [f"`{severity}`: {counts[severity]}" for severity in ("error", "critical", "high", "warn", "info") if counts.get(severity)]
+    return f"{count} ({', '.join(parts)})"
+
+
+def append_markdown_suppressions(lines: list[str], summary: dict[str, Any]) -> None:
+    policy_summary = summary.get("policy_suppressed_summary", {})
+    baseline_summary = summary.get("suppressed_summary", {})
+    policy_count = int(policy_summary.get("count", 0)) if isinstance(policy_summary, dict) else 0
+    baseline_count = int(baseline_summary.get("count", 0)) if isinstance(baseline_summary, dict) else 0
+    if not (policy_count or baseline_count):
+        return
+    lines.append("## Suppressions")
+    lines.append("")
+    lines.append(f"- **Policy suppressed:** {markdown_count_summary(policy_summary)}")
+    lines.append(f"- **Baseline suppressed:** {markdown_count_summary(baseline_summary)}")
+    lines.append("")
+
+
+def append_markdown_baseline_lifecycle(lines: list[str], summary: dict[str, Any]) -> None:
+    lifecycle = summary.get("baseline_lifecycle", {})
+    owner_summary = lifecycle.get("owner_summary", {}) if isinstance(lifecycle, dict) else {}
+    if not owner_summary:
+        return
+    lines.append("## Baseline lifecycle")
+    lines.append("")
+    lines.append("| Owner | Active | Expired | Stale |")
+    lines.append("| --- | ---: | ---: | ---: |")
+    for owner in sorted(owner_summary):
+        counts = owner_summary[owner]
+        lines.append(
+            f"| {markdown_cell(owner)} | {counts.get('active', 0)} | {counts.get('expired', 0)} | {counts.get('stale', 0)} |"
+        )
+    lines.append("")
+
+
 def render_markdown(summary: dict[str, Any]) -> str:
     lines = ["# Agent Security Config Risk Summary", ""]
     counts = summary["counts"]
@@ -515,6 +555,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
     if not findings:
         lines.append("No findings.")
         lines.append("")
+        append_markdown_suppressions(lines, summary)
+        append_markdown_baseline_lifecycle(lines, summary)
         return "\n".join(lines)
 
     lines.append("| Severity | Rule | Risk | Evidence | Recommendation |")
@@ -535,6 +577,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
             + " |"
         )
     lines.append("")
+    append_markdown_suppressions(lines, summary)
+    append_markdown_baseline_lifecycle(lines, summary)
     return "\n".join(lines)
 
 

@@ -9,6 +9,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 ### Rule or schema changes
 
 - Added Phase 12 schema adapter reporting (`schema.adapter`, Markdown, and SARIF properties) plus adapter normalization for OpenAI-compatible tools, Claude Desktop/MCP server configs, and GitHub Actions snippets.
+- Markdown config risk summaries now include policy/baseline suppression counts and baseline owner lifecycle tables when suppression inputs are supplied.
 - Added additive JSON output field `baseline_lifecycle` with active, expired, stale, and owner-grouped baseline suppression lifecycle state.
 - Baseline suppressions now require lifecycle metadata (`owner`, `ticket`, `reason`, and ISO `expires_at`) and expired entries no longer suppress active findings.
 - Added additive JSON output fields `policy_suppressed_findings` and `policy_suppressed_summary` for Phase 10 policy suppressions.
