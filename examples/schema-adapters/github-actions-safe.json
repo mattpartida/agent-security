@@ -1,0 +1,12 @@
+{
+  "name": "agent security scan",
+  "jobs": {
+    "scan": {
+      "permissions": {"contents": "read"},
+      "steps": [
+        {"uses": "actions/checkout@v4"},
+        {"run": "python3 skills/agent-security/scripts/config_risk_summary.py --format sarif < config.json"}
+      ]
+    }
+  }
+}

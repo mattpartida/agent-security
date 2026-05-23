@@ -1,6 +1,6 @@
 ---
 name: healthcheck
-description: Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposure, cron checks, and risk posture. Also use when reviewing OpenClaw agent security, tool permissions, channel exposure, browser/web risk, elevated or approval configuration, sandboxing, small-model risk, or shared-vs-personal trust boundaries.
+description: Audit and harden hosts running OpenClaw for SSH, firewall, updates, exposed services, backups, OS posture, system scheduling, rollback, and network risk. Use alongside agent-security when host exposure and agent runtime permissions interact.
 ---
 
 # OpenClaw Security and Host Hardening
@@ -9,6 +9,9 @@ Read only what you need:
 - `references/os-checks.md` for host command packs
 - `references/profiles.md` for deployment profiles and trust-boundary choices
 - `references/openclaw-hardening.md` for OpenClaw-specific hardening
+- [`../../docs/skill-boundary.md`](../../docs/skill-boundary.md) for deciding when to use `healthcheck`, `agent-security`, or both
+
+When a host review touches agent runtime findings, cite `agent-security` for runtime rule IDs. Do not duplicate `ASG-###` ownership in this skill; use those findings as impact context while `healthcheck` owns host network exposure, SSH, firewall, backups, system scheduling, and rollback.
 
 ## Core rules
 

@@ -1,0 +1,9 @@
+{
+  "name": "malformed-safe",
+  "description": "Wrong-type optional sections should not crash and should stay structured.",
+  "agents": {"list": "not-a-list"},
+  "bindings": "not-a-list",
+  "tools": ["not", "a", "mapping"],
+  "channels": null,
+  "browser": false
+}

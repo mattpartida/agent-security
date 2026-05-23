@@ -1,0 +1,32 @@
+# Agent Security Rule Coverage
+
+Phase 5 makes the `ASG-###` rule set auditable: every stable rule ID has a focused risky example, a safe/negative example, severity rationale, and compensating-control guidance. The executable coverage lives in `tests/test_phase5_rule_coverage.py`; this document maps those checks to the human rule reference.
+
+No Phase 5 detection semantics changed. The current severities and rule IDs remain stable; this pass adds coverage and documentation so future severity or detector changes must be explicit. JSON findings now include additive metadata-backed `recommendation` text for ASG findings so machine-readable output carries the same mitigation guidance as Markdown and SARIF.
+
+## Coverage table
+
+| Rule | Risk key(s) | Severity | Risky coverage | Safe/negative coverage | Severity rationale | Compensating control |
+| --- | --- | ---: | --- | --- | --- | --- |
+| ASG-001 | `shared_channel_with_exec_surface` | High | Shared Discord channel binding plus enabled exec surface. | Exec surface without a shared channel binding. | Shared content can reach command execution, creating high-impact confused-deputy risk. | Separate shared agents from exec tools, require sender-specific approvals, and sandbox execution. |
+| ASG-002 | `browser_private_network_allowed` | High | Browser SSRF policy explicitly allows private-network access. | Browser enabled with private-network access disabled. | Private-network browser access can reach localhost/RFC1918 services and metadata endpoints. | Disable private-network browsing or isolate it in a dedicated low-trust runtime. |
+| ASG-003 | `persistence_available_in_untrusted_content_context` | Warn | Memory enabled while browser/untrusted-content context is reachable. | Memory enabled without shared, browser, or Discord untrusted context. | Persistence can make prompt-injection effects durable, but risk depends on content boundary. | Gate writes with human review and separate untrusted ingestion from durable memory/cron/notes. |
+| ASG-004 | `elevated_enabled_without_allowlist`, `agent_elevated_without_allowlist` | High | Elevated tools enabled without `allowFrom`. | Elevated tools enabled with an owner allowlist. | Elevated tools without identity scoping can turn any reachable input path into privileged action. | Require narrow sender/resource allowlists or disable elevated tools. |
+| ASG-005 | `risky_default_model`, `risky_agent_model_with_tools` | Warn | Small/local model such as `ollama/qwen2.5:7b` used as default. | Stronger default model name without risky markers. | Smaller/local/custom models may be acceptable, but require extra care with tools and fallbacks. | Use stronger models for high-risk tools, remove risky fallbacks, or narrow/sandbox tools. |
+| ASG-006 | `shared_channel_with_private_network_browser` | Critical | Shared Discord channel binding plus private-network browser access. | Private-network browser access without a shared channel binding. | This combines untrusted shared input with internal network reachability. | Split the runtime or disable private-network browsing for shared agents. |
+| ASG-007 | `shared_channel_with_elevated_surface` | High | Shared Discord channel binding plus reachable elevated tools. | Elevated tools without a shared channel binding. | Shared inputs can influence privileged operations even when the elevated surface has an allowlist. | Separate shared runtimes from elevated tools and require explicit sender approvals. |
+| ASG-008 | `exec_security_full` | High | Exec security set to `full`. | Exec security set to approval-gated mode. | Full/unrestricted shell execution is a direct high-impact action surface. | Use approval-gated or sandboxed exec, preferably workspace-scoped. |
+| ASG-009 | `discord_exec_approvals_enabled_without_approvers` | High | Discord exec approvals enabled but `approvers` omitted. | Discord exec approvals include an explicit owner approver. | An approval switch without approvers can become a paper control or configuration trap. | Configure explicit approvers by sender identity. |
+| ASG-010 | `discord_exec_approvals_missing` | Warn | Discord enabled with exec surface but no exec approval block. | Discord exec approvals configured with approvers. | Missing policy is weaker than a malformed enabled policy, but still a shared-channel hardening gap. | Add a clear exec approval policy or remove exec from Discord-bound agents. |
+| ASG-011 | `filesystem_not_workspace_only` | Warn | Filesystem access has `workspaceOnly: false`. | Filesystem access keeps `workspaceOnly: true`. | Broad filesystem access may expose private files, but severity depends on other reachable tools. | Prefer workspace-only file access for project and shared agents. |
+| ASG-012 | `sandbox_disabled` | Warn | Sandbox is present and explicitly disabled. | Sandbox is explicitly enabled. | Disabled isolation weakens containment and amplifies other findings. | Enable sandboxing for runtime, browser, filesystem, and exec where available. |
+| ASG-013 | `exec_or_commands_without_owner_allow_from` | Warn | Exec surface exists without `commands.ownerAllowFrom`. | Exec surface has explicit owner allow-from configuration. | Owner approval gaps are important but may be mitigated by external process or sandbox controls. | Configure owner/sender-specific approval sources. |
+| ASG-014 | `discord_group_chat_surface` | Info | Discord group/channel policy allows group surface. | Discord configured for non-group/DM-style policy. | Group chat is context for trust-boundary review rather than a standalone exploit. | Treat group content as untrusted and tighten tools/approvals. |
+| ASG-015 | `discord_channel_binding` | Info | Binding targets a Discord channel peer. | Binding targets a Discord DM peer. | Channel binding is context for composite rules and audit scope. | Confirm the channel trust boundary and avoid ambient private credentials. |
+
+## Maintenance requirements
+
+- Add or update `tests/test_phase5_rule_coverage.py` whenever a new `ASG-###` rule is introduced.
+- If a rule's severity changes, update this document, `skills/agent-security/references/rules.md`, and any changelog/release notes in the same commit.
+- If a rule's detection semantics changes, include both a risky regression fixture and a safe negative fixture that proves the intended boundary.
+- Keep recommendations aligned with `RULE_METADATA` in `skills/agent-security/scripts/config_risk_summary.py` so JSON, Markdown, SARIF, and docs say the same thing.

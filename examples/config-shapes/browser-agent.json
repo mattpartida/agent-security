@@ -1,0 +1,12 @@
+{
+  "name": "browser-agent",
+  "description": "Browser config that uses a private-network alias instead of canonical ssrfPolicy.",
+  "browser": {
+    "enabled": true,
+    "allowPrivateNetwork": true
+  },
+  "channels": {"discord": {"enabled": true, "groupPolicy": "allowlist"}},
+  "bindings": [
+    {"agentId": "browser", "match": {"channel": "discord", "peer": {"kind": "channel"}}}
+  ]
+}

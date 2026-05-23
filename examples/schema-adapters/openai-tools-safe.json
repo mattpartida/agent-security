@@ -1,0 +1,6 @@
+{
+  "model": "gpt-4o",
+  "tools": [
+    {"type": "function", "function": {"name": "summarize_local_text"}}
+  ]
+}

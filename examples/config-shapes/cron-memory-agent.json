@@ -1,0 +1,9 @@
+{
+  "name": "cron-memory-agent",
+  "description": "Agent with persistence reachable from untrusted Discord context.",
+  "channels": {"discord": {"enabled": true, "groupPolicy": "allowlist"}},
+  "tools": {
+    "memory": {"enabled": true},
+    "cron": {"enabled": true}
+  }
+}

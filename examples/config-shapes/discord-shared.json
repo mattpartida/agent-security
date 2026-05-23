@@ -1,0 +1,14 @@
+{
+  "name": "discord-shared",
+  "description": "OpenClaw-style shared Discord surface using platform aliases.",
+  "platforms": {
+    "discord": {
+      "enabled": true,
+      "group_policy": "all"
+    }
+  },
+  "enabled_toolsets": ["terminal"],
+  "bindings": [
+    {"agentId": "ops", "match": {"channel": "discord", "peer": {"kind": "channel"}}}
+  ]
+}
