@@ -184,6 +184,60 @@ def test_markdown_format_escapes_table_pipes():
     assert "agent\\|one" in proc.stdout
 
 
+def test_markdown_format_reports_policy_and_baseline_suppression_summaries(tmp_path: Path):
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "suppressions": [
+                    {
+                        "rule_id": "ASG-002",
+                        "evidence_paths": ["browser.ssrfPolicy.dangerouslyAllowPrivateNetwork"],
+                        "owner": "platform-security",
+                        "ticket": "SEC-123",
+                        "reason": "Accepted isolated lab browser fixture.",
+                        "expires_at": "2999-01-01",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "disabled_rules": ["ASG-006"],
+                "metadata": {"owner": "appsec", "reason": "Covered by boundary tests."},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    proc = run_script(
+        {
+            "browser": {"enabled": True, "ssrfPolicy": {"dangerouslyAllowPrivateNetwork": True}},
+            "bindings": [{"agentId": "shared", "match": {"channel": "discord", "peer": {"kind": "channel"}}}],
+        },
+        "--policy",
+        str(policy),
+        "--baseline",
+        str(baseline),
+        "--format",
+        "markdown",
+    )
+
+    assert proc.returncode == 0
+    assert "## Suppressions" in proc.stdout
+    assert "- **Policy suppressed:** 1 (`critical`: 1)" in proc.stdout
+    assert "- **Baseline suppressed:** 1 (`high`: 1)" in proc.stdout
+    assert "## Baseline lifecycle" in proc.stdout
+    assert "| Owner | Active | Expired | Stale |" in proc.stdout
+    assert "| platform-security | 1 | 0 | 0 |" in proc.stdout
+
+
 def test_sarif_format_emits_parseable_rule_metadata_and_results():
     proc = run_script(high_risk_payload(), "--format", "sarif")
     assert proc.returncode == 0
