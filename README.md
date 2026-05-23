@@ -146,6 +146,7 @@ Key files:
 - `docs/ci-integration.md` — Phase 6 CI and downstream integration examples with minimal-permission GitHub Actions patterns
 - `docs/baselines.md` — Phase 9 auditable baseline suppressions with exact rule/evidence matching
 - `docs/baseline-lifecycle.md` — Phase 11 baseline generation, required lifecycle metadata, stale/expired cleanup, and owner summaries
+- `docs/schema-adapters.md` — Phase 12 schema adapter contract, supported/ignored fields, fixtures, and report-stability guidance
 - `docs/policies.md` — Phase 10 organization policy files for severity overrides, disabled rules, and exact allowlists
 
 ### `healthcheck`

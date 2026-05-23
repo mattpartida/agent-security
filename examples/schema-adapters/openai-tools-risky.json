@@ -1,0 +1,7 @@
+{
+  "model": "gpt-4o-mini",
+  "tools": [
+    {"type": "code_interpreter"},
+    {"type": "function", "function": {"name": "send_email"}}
+  ]
+}

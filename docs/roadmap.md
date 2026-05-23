@@ -230,20 +230,20 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 12: Schema adapter expansion and compatibility contract
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Make scanner normalization explicit as support expands beyond current Hermes/OpenClaw-style shapes.
 
-### Tasks
+### Shipped scope
 
-1. Report the selected schema adapter in JSON, Markdown, and SARIF properties.
-2. Add adapter-backed fixtures for OpenAI-compatible tool arrays, Claude Desktop/MCP server configs, and GitHub Actions automation snippets.
-3. Document unsupported fields and explicitly ignored capabilities.
-4. Add report stability guidance for `schema_version`, rule IDs, and evidence paths.
-5. Add cross-platform path serialization tests for future Windows/macOS CI expansion.
+1. Reported the selected schema adapter in JSON (`schema.adapter`), Markdown, and SARIF run/result properties.
+2. Added adapter-backed risky and safe fixtures for OpenAI-compatible tool arrays, Claude Desktop/MCP server configs, and GitHub Actions automation snippets under `examples/schema-adapters/`.
+3. Documented unsupported/ignored fields and the non-executable trust boundary in `docs/schema-adapters.md`.
+4. Added report stability guidance for `schema_version`, stable `ASG-###` rule IDs, canonical evidence paths, and URI-style path serialization.
+5. Added cross-platform path serialization regression coverage for POSIX paths and Windows `PureWindowsPath` values.
 
 ### Acceptance criteria
 
-- Every adapter fixture asserts adapter name, expected findings, and safe negative coverage.
+- Every adapter fixture asserts adapter name, expected findings, and safe negative coverage in `tests/test_phase12_schema_adapters.py`.
 - Unsupported fields are documented instead of guessed.
 - Report path serialization remains stable across platforms.
 

@@ -9,6 +9,7 @@ import json
 import re
 import sys
 from datetime import date, timedelta
+from pathlib import PurePath
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
@@ -200,6 +201,79 @@ def set_path_default(obj: dict[str, Any], path: str, value: Any) -> None:
     cur.setdefault(parts[-1], value)
 
 
+def report_path_uri(path: str | PurePath) -> str:
+    text = path.as_posix() if isinstance(path, PurePath) else str(path)
+    return text.replace("\\", "/")
+
+
+def schema_adapter_name(config: dict[str, Any]) -> str:
+    if isinstance(config.get("tools"), list):
+        return "openai_tools"
+    if isinstance(config.get("mcpServers"), dict):
+        return "claude_desktop_mcp"
+    if isinstance(config.get("jobs"), dict):
+        return "github_actions"
+    return "canonical"
+
+
+def ignored_schema_fields(adapter: str) -> list[str]:
+    return {
+        "openai_tools": ["tool_choice", "response_format", "parallel_tool_calls"],
+        "claude_desktop_mcp": ["env", "disabled", "autoApprove"],
+        "github_actions": ["triggers", "env", "matrix", "services"],
+        "canonical": [],
+        "invalid": [],
+    }.get(adapter, [])
+
+
+def _normalize_openai_tools(config: dict[str, Any], normalized: dict[str, Any]) -> None:
+    tools = as_list(config.get("tools"))
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        tool_type = str(tool.get("type", "")).lower()
+        function_name = str(as_dict(tool.get("function")).get("name", "")).lower()
+        if tool_type in {"code_interpreter", "computer_use"} or any(
+            token in function_name for token in ("exec", "shell", "command", "email", "http", "request", "send")
+        ):
+            set_path_default(normalized, "tools.exec.enabled", True)
+            break
+
+
+def _normalize_claude_desktop_mcp(config: dict[str, Any], normalized: dict[str, Any]) -> None:
+    servers = as_dict(config.get("mcpServers"))
+    for name, server in servers.items():
+        if not isinstance(server, dict):
+            continue
+        command = str(server.get("command", "")).lower()
+        args = [str(arg) for arg in as_list(server.get("args"))]
+        server_text = " ".join([str(name).lower(), command, *[arg.lower() for arg in args]])
+        if any(token in server_text for token in ("filesystem", "shell", "exec", "command")):
+            set_path_default(normalized, "tools.exec.enabled", True)
+        if "filesystem" in server_text and any(arg in {"/", "~", "$HOME"} or arg.endswith(":\\") for arg in args):
+            set_path_default(normalized, "tools.fs.workspaceOnly", False)
+
+
+def _normalize_github_actions(config: dict[str, Any], normalized: dict[str, Any]) -> None:
+    jobs = as_dict(config.get("jobs"))
+    exec_surface = False
+    elevated_permissions = False
+    for job in jobs.values():
+        if not isinstance(job, dict):
+            continue
+        for step in as_list(job.get("steps")):
+            if isinstance(step, dict) and isinstance(step.get("run"), str):
+                exec_surface = True
+        permissions = as_dict(job.get("permissions"))
+        for scope, value in permissions.items():
+            if scope not in {"contents", "security-events"} and str(value).lower() == "write":
+                elevated_permissions = True
+            if scope == "contents" and str(value).lower() == "write":
+                elevated_permissions = True
+    if exec_surface and elevated_permissions:
+        set_path_default(normalized, "tools.exec.enabled", True)
+
+
 def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
     """Normalize common real-world aliases into the canonical scanner shape.
 
@@ -207,6 +281,13 @@ def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
     users can migrate gradually without surprising overrides.
     """
     normalized = json.loads(json.dumps(config))
+    adapter = schema_adapter_name(config)
+    if adapter == "openai_tools":
+        _normalize_openai_tools(config, normalized)
+    elif adapter == "claude_desktop_mcp":
+        _normalize_claude_desktop_mcp(config, normalized)
+    elif adapter == "github_actions":
+        _normalize_github_actions(config, normalized)
 
     platforms = as_dict(normalized.get("platforms"))
     platform_discord = as_dict(platforms.get("discord"))
@@ -410,6 +491,8 @@ def finding_recommendation(finding: dict[str, Any]) -> str:
 def render_markdown(summary: dict[str, Any]) -> str:
     lines = ["# Agent Security Config Risk Summary", ""]
     counts = summary["counts"]
+    schema = summary.get("schema", {})
+    lines.append(f"**Schema adapter:** {schema.get('adapter', 'canonical')}")
     if counts.get("error") and not (counts.get("critical") or counts.get("high")):
         lines.append("**Overall:** scanner input error")
     else:
@@ -789,6 +872,7 @@ def count_by_severity(findings: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
+    schema_adapter = summary.get("schema", {}).get("adapter", "canonical")
     findings_by_rule_id = {sarif_rule_id(finding): finding for finding in summary["findings"]}
     rules = []
     for rule_id in sorted(findings_by_rule_id):
@@ -830,6 +914,7 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
                 "risk": finding.get("risk"),
                 "evidence_paths": evidence_paths_from_finding(finding),
                 "source_locations": source_locations,
+                "schema_adapter": schema_adapter,
             },
         }
         if finding.get("policy"):
@@ -850,6 +935,7 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
                     }
                 },
                 "results": results,
+                "properties": {"schema_adapter": schema_adapter},
             }
         ],
     }
@@ -871,16 +957,18 @@ def main() -> int:
     policy, policy_errors = load_policy(args.policy)
     baseline_suppressions, baseline_errors = load_baseline(args.baseline)
     cfg, initial_findings, raw_input = load_json()
+    schema_adapter = schema_adapter_name(cfg) if cfg is not None else "invalid"
     if cfg is not None and not policy_errors:
         cfg = normalize_config_shape(cfg)
     findings: list[dict[str, Any]] = list(policy_errors) + list(baseline_errors) + list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:
-        item = {"severity": severity, "risk": risk}
+        item: dict[str, Any] = {"severity": severity, "risk": risk}
         rule_id = RULE_IDS.get(risk)
         if rule_id:
             item["rule_id"] = rule_id
         item.update(extra)
+        item["schema"] = {"adapter": schema_adapter}
         if rule_id and "recommendation" not in item:
             item["recommendation"] = RULE_METADATA[rule_id]["help"]
         attach_evidence_metadata(item, raw_input)
@@ -1011,6 +1099,11 @@ def main() -> int:
     severity_order = {"error": 5, "critical": 4, "high": 3, "warn": 2, "info": 1}
     summary = {
         "schema_version": SCHEMA_VERSION,
+        "schema": {
+            "adapter": schema_adapter,
+            "schema_version": SCHEMA_VERSION,
+            "ignored_fields": ignored_schema_fields(schema_adapter),
+        },
         "ok": not any(f["severity"] in {"error", "critical", "high"} for f in active_findings),
         "risk_count": len(active_findings),
         "counts": count_by_severity(active_findings),
