@@ -247,6 +247,25 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 - Unsupported fields are documented instead of guessed.
 - Report path serialization remains stable across platforms.
 
+## Phase 13: Healthcheck helper output and strict gates
+
+**Status:** Shipped
+**Goal:** Make the healthcheck helper scripts useful in scheduled checks, CI smoke jobs, PR comments, and Discord updates without requiring callers to scrape ad-hoc JSON.
+
+### Shipped scope
+
+1. Added `--format json|markdown` to `skills/healthcheck/scripts/parse_openclaw_audit.py` and `skills/healthcheck/scripts/summarize_openclaw_posture.py`, keeping JSON as the default.
+2. Added `ok` and nested `summary` fields while preserving top-level `critical`, `warn`, and `info` counts for older consumers.
+3. Added `--strict` exit-code behavior so audit/posture helper checks can fail scheduled jobs or CI smoke runs when actionable issues are present.
+4. Added [`docs/healthcheck-helper-output.md`](healthcheck-helper-output.md) and README links for the reusable helper output contract.
+5. Added `tests/test_phase13_healthcheck_outputs.py` covering JSON, Markdown, strict mode, docs, changelog, and roadmap status.
+
+### Acceptance criteria
+
+- Both healthcheck helper scripts emit stable JSON by default and compact Markdown with `--format markdown`.
+- Strict mode exits non-zero only when the parsed posture requires attention.
+- Documentation states that the helpers parse stdin only and do not modify host state.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.

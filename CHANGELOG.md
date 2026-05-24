@@ -20,6 +20,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Script CLI changes
 
+- Added Phase 13 healthcheck helper `--format json|markdown` and `--strict` options to `skills/healthcheck/scripts/parse_openclaw_audit.py` and `skills/healthcheck/scripts/summarize_openclaw_posture.py`.
 - Added `--generate-baseline`, `--fail-on-stale-baseline`, and `--fail-on-expired-baseline` to `skills/agent-security/scripts/config_risk_summary.py` for baseline lifecycle cleanup workflows.
 - Added `--policy <path>` to `skills/agent-security/scripts/config_risk_summary.py` for dependency-light organization policy files with severity overrides, disabled rules, and exact evidence-path allowlists.
 - Added `--baseline <path>` to `skills/agent-security/scripts/config_risk_summary.py` for exact, auditable `rule_id` + evidence-path suppressions.

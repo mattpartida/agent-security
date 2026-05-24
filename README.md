@@ -163,6 +163,7 @@ Use for:
 Boundary guide:
 
 - [`docs/skill-boundary.md`](docs/skill-boundary.md) — when to use `agent-security`, `healthcheck`, or both
+- [`docs/healthcheck-helper-output.md`](docs/healthcheck-helper-output.md) — JSON, Markdown, and strict-mode output for reusable healthcheck helper scripts
 - [`examples/reports/combined-browser-private-network-boundary.md`](examples/reports/combined-browser-private-network-boundary.md) — combined private-network/browser + host exposure report snippet
 
 ## Repository layout
