@@ -8,6 +8,7 @@ FIXTURE_DIR = ROOT / "tests" / "fixtures" / "prompt-injection"
 MANIFEST = FIXTURE_DIR / "manifest.json"
 SIGNAL_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "flag_prompt_injection_signals.py"
 SCORE_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "score_prompt_injection_exposure.py"
+SUMMARY_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "summarize_prompt_injection_corpus.py"
 
 
 def run_signal_fixture(name: str):
@@ -84,6 +85,43 @@ def test_exposure_fixture_scores_high_risk_agent_config():
         assert data["severity"] in set(case["expected_severities"]), case["file"]
         factors = {factor["factor"] for factor in data["factors"]}
         assert set(case["expected_factors"]).issubset(factors), case["file"]
+
+
+def test_prompt_injection_corpus_summary_script_reports_manifest_counts():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["schema_version"] == "1.0"
+    assert data["manifest"] == "tests/fixtures/prompt-injection/manifest.json"
+    assert data["total_cases"] == 8
+    assert data["text_cases"] == 7
+    assert data["config_cases"] == 1
+    assert data["flagged_cases"] == 6
+    assert data["benign_cases"] == 1
+    assert data["kinds"]["direct"] == 1
+    assert data["expected_signals"]["secret_exfiltration"] == 2
+    assert data["expected_factors"]["browser_private_network_allowed"] == 1
+
+
+def test_prompt_injection_corpus_summary_script_emits_markdown_for_docs():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--format", "markdown", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    markdown = proc.stdout
+    assert "# Prompt-injection fixture corpus summary" in markdown
+    assert "| Total cases | 8 |" in markdown
+    assert "| Flagged text cases | 6 |" in markdown
+    assert "| `secret_exfiltration` | 2 |" in markdown
+    assert "| `browser_private_network_allowed` | 1 |" in markdown
 
 
 def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():

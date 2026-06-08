@@ -1,6 +1,6 @@
 # Prompt-injection detector quality
 
-The prompt-injection scanner is a heuristic regression detector, not a security boundary. The fixture corpus in `tests/fixtures/prompt-injection/manifest.json` exists to keep known prompt-injection signals from silently regressing while making detector limits explicit.
+The prompt-injection scanner is a heuristic regression detector, not a security boundary. The fixture corpus in `tests/fixtures/prompt-injection/manifest.json` exists to keep known prompt-injection signals from silently regressing while making detector limits explicit. Use `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` to produce JSON or Markdown inventory summaries from the manifest.
 
 ## Corpus contract
 
