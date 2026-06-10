@@ -124,7 +124,34 @@ def _issue_summary(issues: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
-def summarize(manifest_path: Path) -> dict[str, Any]:
+def _case_inventory(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    for case in cases:
+        kind = str(case.get("kind", "unknown"))
+        if kind == "config":
+            classification = "config"
+            expected = [str(item) for item in case.get("expected_factors", [])]
+        elif case.get("flagged") is True:
+            classification = "flagged"
+            expected = [str(item) for item in case.get("expected_signals", [])]
+        elif case.get("flagged") is False:
+            classification = "benign"
+            expected = [str(item) for item in case.get("expected_signals", [])]
+        else:
+            classification = "unknown"
+            expected = [str(item) for item in case.get("expected_signals", [])]
+        inventory.append(
+            {
+                "file": str(case.get("file", "<missing>")),
+                "kind": kind,
+                "classification": classification,
+                "expected": sorted(expected),
+            }
+        )
+    return sorted(inventory, key=lambda item: item["file"])
+
+
+def summarize(manifest_path: Path, *, include_cases: bool = False) -> dict[str, Any]:
     manifest = load_manifest(manifest_path)
     cases = manifest.get("cases", [])
     kinds: Counter[str] = Counter()
@@ -150,7 +177,7 @@ def summarize(manifest_path: Path) -> dict[str, Any]:
     total_cases = len(cases)
     issues = validate_cases(cases) + [INFO_ISSUE]
     summary = _issue_summary(issues)
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "manifest": _repo_relative(manifest_path),
         "description": manifest.get("description", ""),
@@ -167,11 +194,32 @@ def summarize(manifest_path: Path) -> dict[str, Any]:
         "expected_factors": dict(sorted(factors.items())),
         "note": INFO_ISSUE["message"],
     }
+    if include_cases:
+        result["cases"] = _case_inventory(cases)
+    return result
 
 
 def _table(rows: list[tuple[str, int]]) -> str:
     lines = ["| Name | Count |", "| --- | ---: |"]
     lines.extend(f"| `{name}` | {count} |" for name, count in rows)
+    return "\n".join(lines)
+
+
+def _escape_table_cell(value: str) -> str:
+    return value.replace("|", "\\|")
+
+
+def _case_inventory_table(cases: list[dict[str, Any]]) -> str:
+    lines = ["| File | Kind | Classification | Expected |", "| --- | --- | --- | --- |"]
+    for case in cases:
+        expected = ", ".join(f"`{_escape_table_cell(item)}`" for item in case["expected"])
+        lines.append(
+            "| "
+            f"`{_escape_table_cell(case['file'])}` | "
+            f"`{_escape_table_cell(case['kind'])}` | "
+            f"{_escape_table_cell(case['classification'])} | "
+            f"{expected} |"
+        )
     return "\n".join(lines)
 
 
@@ -202,9 +250,13 @@ def render_markdown(summary: dict[str, Any]) -> str:
         "",
         "## Expected config factors",
         _table(factor_rows) if factor_rows else "No expected config factors listed.",
+    ]
+    if "cases" in summary:
+        sections.extend(["", "## Case inventory", _case_inventory_table(summary["cases"])])
+    sections.extend([
         "",
         summary["note"],
-    ]
+    ])
     return "\n".join(sections) + "\n"
 
 
@@ -214,10 +266,11 @@ def main() -> int:
     parser.add_argument("--format", choices=["json", "markdown"], default="json")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON when --format json is used")
     parser.add_argument("--strict", action="store_true", help="exit non-zero when manifest contract issues are critical")
+    parser.add_argument("--include-cases", action="store_true", help="include stable per-case inventory rows in JSON or Markdown output")
     args = parser.parse_args()
 
     try:
-        summary = summarize(args.manifest)
+        summary = summarize(args.manifest, include_cases=args.include_cases)
     except (OSError, json.JSONDecodeError) as exc:
         print(f"error: unable to summarize manifest: {exc}", file=sys.stderr)
         return 2

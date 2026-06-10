@@ -361,6 +361,7 @@ openclaw status --deep --json | python3 skills/agent-security/scripts/score_prom
 python3 skills/agent-security/scripts/flag_prompt_injection_signals.py < suspicious-content.txt
 
 # Fixture inventory summary for detector maintenance; add --strict for CI/scheduled corpus-contract gates
+# Add --include-cases when review artifacts need per-fixture case inventory rows.
 python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py tests/fixtures/prompt-injection/manifest.json
 ```
 

@@ -285,6 +285,36 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 - `--strict` exits non-zero when critical corpus-contract issues are present and succeeds for the shipped manifest.
 - Detector-quality documentation explains when to use strict corpus summary checks.
 
+## Phase 15: Prompt-injection case inventory exports
+
+**Status:** Shipped
+**Goal:** Make corpus review packets useful for humans and machines without forcing reviewers to open the manifest manually.
+
+### Shipped scope
+
+1. Added `--include-cases` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py`.
+2. Added stable JSON `cases` rows with `file`, `kind`, `classification`, and sorted `expected` fields.
+3. Added a Markdown `Case inventory` table for copyable review artifacts.
+4. Kept default summaries compact unless `--include-cases` is explicitly supplied.
+5. Updated README, skill usage notes, detector-quality docs, changelog, and regression tests.
+
+### Acceptance criteria
+
+- JSON case inventory rows are sorted by fixture file for stable diffs.
+- Markdown output includes a per-fixture table only when `--include-cases` is supplied.
+- The default summary output remains backward-compatible and compact.
+
+## Phase 16: Prompt-injection corpus category guidance
+
+**Status:** Planned
+**Goal:** Add maintainer guidance for when to split a new prompt-injection fixture into a new category versus extending an existing category.
+
+### Planned scope
+
+1. Add a short category decision table to detector-quality docs.
+2. Add manifest validation warnings for unknown or undocumented fixture `kind` values.
+3. Keep unknown kinds non-fatal unless strict policy later promotes them.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.

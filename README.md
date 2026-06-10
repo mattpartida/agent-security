@@ -121,6 +121,8 @@ python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py \
   tests/fixtures/prompt-injection/manifest.json
 ```
 
+Add `--include-cases` to include a stable per-fixture case inventory in JSON or Markdown review artifacts.
+
 ## Roadmap
 
 The current improvement roadmap lives in [`docs/roadmap.md`](docs/roadmap.md). It tracks planned scanner output formats, evidence paths, prompt-injection fixtures, real-world config coverage, rule coverage, CI integration examples, packaging polish, skill-boundary cleanup, and adoption-at-scale baseline/policy/schema work.

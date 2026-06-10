@@ -165,6 +165,45 @@ def test_prompt_injection_corpus_summary_script_emits_markdown_for_docs():
     assert "| `browser_private_network_allowed` | 1 |" in markdown
 
 
+def test_prompt_injection_corpus_summary_include_cases_exports_stable_case_inventory():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--include-cases", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    cases = data["cases"]
+    assert len(cases) == data["total_cases"] == 8
+    first = cases[0]
+    assert first == {
+        "file": "benign-status-update.txt",
+        "kind": "benign",
+        "classification": "benign",
+        "expected": [],
+    }
+    config_case = next(case for case in cases if case["kind"] == "config")
+    assert config_case["classification"] == "config"
+    assert "browser_private_network_allowed" in config_case["expected"]
+    assert cases == sorted(cases, key=lambda case: case["file"])
+
+
+def test_prompt_injection_corpus_summary_markdown_include_cases_renders_case_inventory():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--format", "markdown", "--include-cases", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    markdown = proc.stdout
+    assert "## Case inventory" in markdown
+    assert "| File | Kind | Classification | Expected |" in markdown
+    assert "| `benign-status-update.txt` | `benign` | benign |  |" in markdown
+    assert "| `high-risk-agent-config.json` | `config` | config |" in markdown
+
+
 def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
     docs_path = ROOT / "docs" / "prompt-injection-detector-quality.md"
     docs = docs_path.read_text(encoding="utf-8")
@@ -175,6 +214,8 @@ def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
         "tool-output exfiltration",
         "tests/fixtures/prompt-injection/manifest.json",
         "--strict",
+        "--include-cases",
+        "case inventory",
         "corpus summary",
     ]
     for phrase in required_phrases:
