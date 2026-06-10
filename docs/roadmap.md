@@ -266,6 +266,25 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 - Strict mode exits non-zero only when the parsed posture requires attention.
 - Documentation states that the helpers parse stdin only and do not modify host state.
 
+## Phase 14: Prompt-injection corpus summary quality gates
+
+**Status:** Shipped
+**Goal:** Make prompt-injection fixture maintenance usable in CI and scheduled detector-quality checks without scraping ad-hoc output.
+
+### Shipped scope
+
+1. Added `ok`, `summary`, and `issues` fields to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` while keeping existing count fields stable.
+2. Added `--strict` so critical manifest-contract issues fail closed for CI or scheduled corpus-quality gates.
+3. Validated high-signal corpus contract issues such as flagged cases without expected signals, benign cases with expected signals, config cases without factors/severities, duplicate case files, and empty corpora.
+4. Kept Markdown inventory output human-readable by adding critical and warning issue counts to the metrics table.
+5. Updated README, skill usage notes, detector-quality docs, changelog, and corpus regression tests.
+
+### Acceptance criteria
+
+- JSON output preserves existing inventory fields and adds machine-readable `ok`, `summary`, and `issues` fields.
+- `--strict` exits non-zero when critical corpus-contract issues are present and succeeds for the shipped manifest.
+- Detector-quality documentation explains when to use strict corpus summary checks.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.

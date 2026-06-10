@@ -113,6 +113,14 @@ python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py \
   tests/fixtures/prompt-injection/manifest.json
 ```
 
+Use strict mode when corpus-contract issues should fail a CI or scheduled quality gate:
+
+```bash
+python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py \
+  --strict \
+  tests/fixtures/prompt-injection/manifest.json
+```
+
 ## Roadmap
 
 The current improvement roadmap lives in [`docs/roadmap.md`](docs/roadmap.md). It tracks planned scanner output formats, evidence paths, prompt-injection fixtures, real-world config coverage, rule coverage, CI integration examples, packaging polish, skill-boundary cleanup, and adoption-at-scale baseline/policy/schema work.

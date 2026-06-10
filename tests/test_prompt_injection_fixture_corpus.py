@@ -98,6 +98,15 @@ def test_prompt_injection_corpus_summary_script_reports_manifest_counts():
     data = json.loads(proc.stdout)
     assert data["schema_version"] == "1.0"
     assert data["manifest"] == "tests/fixtures/prompt-injection/manifest.json"
+    assert data["ok"] is True
+    assert data["summary"] == {"critical": 0, "warn": 0, "info": 1}
+    assert data["issues"] == [
+        {
+            "level": "info",
+            "code": "corpus_summary_generated",
+            "message": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
+        }
+    ]
     assert data["total_cases"] == 8
     assert data["text_cases"] == 7
     assert data["config_cases"] == 1
@@ -106,6 +115,38 @@ def test_prompt_injection_corpus_summary_script_reports_manifest_counts():
     assert data["kinds"]["direct"] == 1
     assert data["expected_signals"]["secret_exfiltration"] == 2
     assert data["expected_factors"]["browser_private_network_allowed"] == 1
+
+
+def test_prompt_injection_corpus_summary_strict_fails_closed_on_invalid_manifest(tmp_path):
+    invalid_manifest = tmp_path / "manifest.json"
+    invalid_manifest.write_text(
+        json.dumps(
+            {
+                "description": "Invalid corpus used by strict-mode regression tests.",
+                "cases": [
+                    {"file": "malicious.txt", "kind": "direct", "flagged": True, "expected_signals": []},
+                    {"file": "negative.txt", "kind": "benign", "flagged": False, "expected_signals": ["secret_exfiltration"]},
+                    {"file": "config.json", "kind": "config", "expected_severities": [], "expected_factors": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--strict", str(invalid_manifest)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 1
+    data = json.loads(proc.stdout)
+    assert data["ok"] is False
+    assert data["summary"]["critical"] >= 3
+    assert {issue["code"] for issue in data["issues"]} >= {
+        "malicious_case_missing_expected_signals",
+        "benign_case_has_expected_signals",
+        "config_case_missing_expected_factors",
+    }
 
 
 def test_prompt_injection_corpus_summary_script_emits_markdown_for_docs():
@@ -133,6 +174,8 @@ def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
         "when to add a fixture",
         "tool-output exfiltration",
         "tests/fixtures/prompt-injection/manifest.json",
+        "--strict",
+        "corpus summary",
     ]
     for phrase in required_phrases:
         assert phrase in docs.lower()

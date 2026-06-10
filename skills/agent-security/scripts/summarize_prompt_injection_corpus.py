@@ -10,6 +10,12 @@ from typing import Any
 
 SCHEMA_VERSION = "1.0"
 
+INFO_ISSUE = {
+    "level": "info",
+    "code": "corpus_summary_generated",
+    "message": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
+}
+
 
 def _repo_relative(path: Path) -> str:
     resolved = path.resolve()
@@ -22,6 +28,100 @@ def _repo_relative(path: Path) -> str:
 def load_manifest(path: Path) -> dict[str, Any]:
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _issue(level: str, code: str, message: str, *, case_file: str | None = None) -> dict[str, Any]:
+    issue: dict[str, Any] = {"level": level, "code": code, "message": message}
+    if case_file is not None:
+        issue["case_file"] = case_file
+    return issue
+
+
+def validate_cases(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    issues: list[dict[str, Any]] = []
+    seen_files: set[str] = set()
+    has_benign = False
+    has_flagged = False
+    has_config = False
+
+    for case in cases:
+        case_file = str(case.get("file", "<missing>"))
+        kind = str(case.get("kind", "unknown"))
+        if case_file in seen_files:
+            issues.append(_issue("critical", "duplicate_case_file", "Manifest case files must be unique.", case_file=case_file))
+        seen_files.add(case_file)
+
+        if kind == "config":
+            has_config = True
+            if not case.get("expected_factors"):
+                issues.append(
+                    _issue(
+                        "critical",
+                        "config_case_missing_expected_factors",
+                        "Config corpus cases must list at least one expected exposure factor.",
+                        case_file=case_file,
+                    )
+                )
+            if not case.get("expected_severities"):
+                issues.append(
+                    _issue(
+                        "critical",
+                        "config_case_missing_expected_severities",
+                        "Config corpus cases must list at least one expected exposure severity.",
+                        case_file=case_file,
+                    )
+                )
+            continue
+
+        if case.get("flagged") is True:
+            has_flagged = True
+            if not case.get("expected_signals"):
+                issues.append(
+                    _issue(
+                        "critical",
+                        "malicious_case_missing_expected_signals",
+                        "Flagged malicious text cases must list at least one expected signal.",
+                        case_file=case_file,
+                    )
+                )
+        elif case.get("flagged") is False:
+            has_benign = True
+            if case.get("expected_signals"):
+                issues.append(
+                    _issue(
+                        "critical",
+                        "benign_case_has_expected_signals",
+                        "Benign text cases must keep expected_signals empty.",
+                        case_file=case_file,
+                    )
+                )
+        else:
+            issues.append(
+                _issue(
+                    "critical",
+                    "text_case_missing_flagged_boolean",
+                    "Text corpus cases must set flagged to true or false.",
+                    case_file=case_file,
+                )
+            )
+
+    if not cases:
+        issues.append(_issue("critical", "empty_corpus", "Manifest must contain at least one corpus case."))
+    if cases and not has_flagged:
+        issues.append(_issue("warn", "no_flagged_text_cases", "Corpus has no flagged malicious text cases."))
+    if cases and not has_benign:
+        issues.append(_issue("warn", "no_benign_text_cases", "Corpus has no benign negative text cases."))
+    if cases and not has_config:
+        issues.append(_issue("warn", "no_config_cases", "Corpus has no config exposure cases."))
+    return issues
+
+
+def _issue_summary(issues: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "critical": sum(1 for issue in issues if issue["level"] == "critical"),
+        "warn": sum(1 for issue in issues if issue["level"] == "warn"),
+        "info": sum(1 for issue in issues if issue["level"] == "info"),
+    }
 
 
 def summarize(manifest_path: Path) -> dict[str, Any]:
@@ -48,10 +148,15 @@ def summarize(manifest_path: Path) -> dict[str, Any]:
         signals.update(str(signal) for signal in case.get("expected_signals", []))
 
     total_cases = len(cases)
+    issues = validate_cases(cases) + [INFO_ISSUE]
+    summary = _issue_summary(issues)
     return {
         "schema_version": SCHEMA_VERSION,
         "manifest": _repo_relative(manifest_path),
         "description": manifest.get("description", ""),
+        "ok": summary["critical"] == 0,
+        "summary": summary,
+        "issues": issues,
         "total_cases": total_cases,
         "text_cases": total_cases - config_cases,
         "config_cases": config_cases,
@@ -60,7 +165,7 @@ def summarize(manifest_path: Path) -> dict[str, Any]:
         "kinds": dict(sorted(kinds.items())),
         "expected_signals": dict(sorted(signals.items())),
         "expected_factors": dict(sorted(factors.items())),
-        "note": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
+        "note": INFO_ISSUE["message"],
     }
 
 
@@ -86,6 +191,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"| Config cases | {summary['config_cases']} |",
         f"| Flagged text cases | {summary['flagged_cases']} |",
         f"| Benign text cases | {summary['benign_cases']} |",
+        f"| Critical issues | {summary['summary']['critical']} |",
+        f"| Warning issues | {summary['summary']['warn']} |",
         "",
         "## Case kinds",
         _table(kind_rows),
@@ -106,6 +213,7 @@ def main() -> int:
     parser.add_argument("manifest", type=Path, help="path to tests/fixtures/prompt-injection/manifest.json")
     parser.add_argument("--format", choices=["json", "markdown"], default="json")
     parser.add_argument("--compact", action="store_true", help="emit compact JSON when --format json is used")
+    parser.add_argument("--strict", action="store_true", help="exit non-zero when manifest contract issues are critical")
     args = parser.parse_args()
 
     try:
@@ -118,6 +226,8 @@ def main() -> int:
         print(render_markdown(summary), end="")
     else:
         print(json.dumps(summary, indent=None if args.compact else 2, separators=(",", ":") if args.compact else None, sort_keys=True))
+    if args.strict and not summary["ok"]:
+        return 1
     return 0
 
 
