@@ -306,14 +306,21 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 
 ## Phase 16: Prompt-injection corpus category guidance
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Add maintainer guidance for when to split a new prompt-injection fixture into a new category versus extending an existing category.
 
-### Planned scope
+### Shipped scope
 
-1. Add a short category decision table to detector-quality docs.
-2. Add manifest validation warnings for unknown or undocumented fixture `kind` values.
-3. Keep unknown kinds non-fatal unless strict policy later promotes them.
+1. Added a category decision table to [`docs/prompt-injection-detector-quality.md`](prompt-injection-detector-quality.md) covering the documented manifest `kind` values.
+2. Added non-fatal `undocumented_case_kind` warnings to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` when fixtures use unknown category names.
+3. Kept unknown kinds as warnings, even under `--strict`, so exploratory fixtures can land before maintainers promote the category into documented guidance.
+4. Added regression coverage for unknown-kind warnings, docs guidance, and roadmap status in `tests/test_prompt_injection_fixture_corpus.py`.
+
+### Acceptance criteria
+
+- Detector-quality docs explain when to split versus extend prompt-injection categories.
+- Corpus summaries warn on unknown or undocumented fixture `kind` values.
+- Unknown kinds remain non-fatal unless a future strict policy promotes them.
 
 ## Implementation order
 

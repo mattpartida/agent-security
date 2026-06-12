@@ -16,6 +16,17 @@ INFO_ISSUE = {
     "message": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
 }
 
+DOCUMENTED_CASE_KINDS = {
+    "benign",
+    "config",
+    "direct",
+    "encoded",
+    "indirect",
+    "obfuscated",
+    "persistence",
+    "tool_output",
+}
+
 
 def _repo_relative(path: Path) -> str:
     resolved = path.resolve()
@@ -30,10 +41,19 @@ def load_manifest(path: Path) -> dict[str, Any]:
         return json.load(handle)
 
 
-def _issue(level: str, code: str, message: str, *, case_file: str | None = None) -> dict[str, Any]:
+def _issue(
+    level: str,
+    code: str,
+    message: str,
+    *,
+    case_file: str | None = None,
+    kind: str | None = None,
+) -> dict[str, Any]:
     issue: dict[str, Any] = {"level": level, "code": code, "message": message}
     if case_file is not None:
         issue["case_file"] = case_file
+    if kind is not None:
+        issue["kind"] = kind
     return issue
 
 
@@ -50,6 +70,17 @@ def validate_cases(cases: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if case_file in seen_files:
             issues.append(_issue("critical", "duplicate_case_file", "Manifest case files must be unique.", case_file=case_file))
         seen_files.add(case_file)
+
+        if kind not in DOCUMENTED_CASE_KINDS:
+            issues.append(
+                _issue(
+                    "warn",
+                    "undocumented_case_kind",
+                    "Case kind is not documented in the prompt-injection category guidance.",
+                    case_file=case_file,
+                    kind=kind,
+                )
+            )
 
         if kind == "config":
             has_config = True

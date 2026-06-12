@@ -204,6 +204,62 @@ def test_prompt_injection_corpus_summary_markdown_include_cases_renders_case_inv
     assert "| `high-risk-agent-config.json` | `config` | config |" in markdown
 
 
+def test_prompt_injection_corpus_summary_warns_on_undocumented_case_kind(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "description": "Unknown-kind regression fixture.",
+                "cases": [
+                    {"file": "novel.txt", "kind": "novel_social", "flagged": True, "expected_signals": ["tool_coercion"]},
+                    {"file": "benign.txt", "kind": "benign", "flagged": False, "expected_signals": []},
+                    {"file": "config.json", "kind": "config", "expected_severities": ["high"], "expected_factors": ["exec_security_full"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--strict", str(manifest)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout
+    data = json.loads(proc.stdout)
+    assert data["ok"] is True
+    assert data["summary"] == {"critical": 0, "warn": 1, "info": 1}
+    assert {
+        "level": "warn",
+        "code": "undocumented_case_kind",
+        "message": "Case kind is not documented in the prompt-injection category guidance.",
+        "case_file": "novel.txt",
+        "kind": "novel_social",
+    } in data["issues"]
+
+
+def test_detector_quality_docs_and_roadmap_phase16_category_guidance_are_shipped():
+    docs = (ROOT / "docs" / "prompt-injection-detector-quality.md").read_text(encoding="utf-8")
+    for phrase in [
+        "category decision table",
+        "direct",
+        "indirect",
+        "encoded",
+        "obfuscated",
+        "persistence",
+        "tool_output",
+        "config",
+        "undocumented_case_kind",
+        "unknown kinds are warnings",
+    ]:
+        assert phrase in docs.lower()
+
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    phase16 = roadmap.split("## Phase 16:", 1)[1].split("## Implementation order", 1)[0]
+    assert "**Status:** Shipped" in phase16
+    assert "undocumented_case_kind" in phase16
+
+
 def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
     docs_path = ROOT / "docs" / "prompt-injection-detector-quality.md"
     docs = docs_path.read_text(encoding="utf-8")
