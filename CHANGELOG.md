@@ -20,6 +20,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Script CLI changes
 
+- Added `--format json|markdown` to `skills/agent-security/scripts/flag_prompt_injection_signals.py` for review-friendly prompt-injection signal summaries while keeping JSON as the default.
 - Added `--output-dir` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` for paired JSON/Markdown prompt-corpus review packets with no manifest or fixture mutation.
 - Added non-fatal `undocumented_case_kind` warnings to prompt-injection corpus summaries for unknown fixture categories.
 - Added `ok`, `summary`, `issues`, and `--strict` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` for prompt-injection corpus quality gates.
