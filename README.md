@@ -121,7 +121,7 @@ python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py \
   tests/fixtures/prompt-injection/manifest.json
 ```
 
-Add `--include-cases` to include a stable per-fixture case inventory in JSON or Markdown review artifacts.
+Add `--include-cases` to include a stable per-fixture case inventory in JSON or Markdown review artifacts. Add `--output-dir artifacts/prompt-corpus-review` to write a paired JSON/Markdown review packet without modifying the manifest or fixtures.
 
 ## Roadmap
 

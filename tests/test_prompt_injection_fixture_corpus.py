@@ -204,6 +204,38 @@ def test_prompt_injection_corpus_summary_markdown_include_cases_renders_case_inv
     assert "| `high-risk-agent-config.json` | `config` | config |" in markdown
 
 
+def test_prompt_injection_corpus_summary_output_dir_writes_review_packet(tmp_path):
+    packet_dir = tmp_path / "packet"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SUMMARY_SCRIPT),
+            "--include-cases",
+            "--output-dir",
+            str(packet_dir),
+            str(MANIFEST),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["artifact_paths"] == {
+        "json": str(packet_dir / "prompt-injection-corpus-summary.json"),
+        "markdown": str(packet_dir / "prompt-injection-corpus-summary.md"),
+    }
+    assert data["writes_to_manifest"] is False
+    assert data["writes_to_fixtures"] is False
+
+    packet_json = json.loads((packet_dir / "prompt-injection-corpus-summary.json").read_text(encoding="utf-8"))
+    packet_markdown = (packet_dir / "prompt-injection-corpus-summary.md").read_text(encoding="utf-8")
+    assert packet_json["cases"] == data["cases"]
+    assert packet_json["artifact_paths"] == data["artifact_paths"]
+    assert "# Prompt-injection fixture corpus summary" in packet_markdown
+    assert "## Case inventory" in packet_markdown
+
+
 def test_prompt_injection_corpus_summary_warns_on_undocumented_case_kind(tmp_path):
     manifest = tmp_path / "manifest.json"
     manifest.write_text(
@@ -258,6 +290,21 @@ def test_detector_quality_docs_and_roadmap_phase16_category_guidance_are_shipped
     phase16 = roadmap.split("## Phase 16:", 1)[1].split("## Implementation order", 1)[0]
     assert "**Status:** Shipped" in phase16
     assert "undocumented_case_kind" in phase16
+
+
+def test_detector_quality_docs_and_roadmap_phase17_review_packets_are_shipped():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "agent-security" / "SKILL.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    phase17 = roadmap.split("## Phase 17:", 1)[1].split("## Implementation order", 1)[0]
+
+    for text in (readme, skill, changelog, phase17):
+        assert "--output-dir" in text
+    assert "**Status:** Shipped" in phase17
+    assert "artifact_paths" in phase17
+    assert "writes_to_manifest: false" in phase17
+    assert "writes_to_fixtures: false" in phase17
 
 
 def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():

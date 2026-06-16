@@ -322,6 +322,24 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 - Corpus summaries warn on unknown or undocumented fixture `kind` values.
 - Unknown kinds remain non-fatal unless a future strict policy promotes them.
 
+## Phase 17: Prompt-injection corpus review packet exports
+
+**Status:** Shipped
+**Goal:** Let maintainers generate copyable, paired JSON and Markdown review packets for corpus audits without manually redirecting multiple commands or mutating fixture state.
+
+### Shipped scope
+
+1. Added `--output-dir` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` to write `prompt-injection-corpus-summary.json` and `prompt-injection-corpus-summary.md` together.
+2. Preserved stdout behavior while adding machine-readable `artifact_paths`, `writes_to_manifest: false`, and `writes_to_fixtures: false` guardrails to packet-enabled runs.
+3. Reused `--include-cases` so generated packets can include stable per-fixture inventory rows for reviewer handoff.
+4. Updated README, skill usage notes, changelog, and regression tests for the review-packet workflow.
+
+### Acceptance criteria
+
+- `--output-dir` creates deterministic JSON and Markdown artifact names in the requested directory.
+- Packet generation reports artifact paths and explicit no-mutation guardrails.
+- The JSON packet matches stdout summary content, and the Markdown packet includes the case inventory when requested.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.
@@ -330,6 +348,7 @@ Do not duplicate those branches when implementing roadmap work. If either PR mer
 4. Use Phases 4 and 5 to prevent schema and rule drift after output formats stabilize.
 5. Treat Phases 6 through 8 as repo credibility and adoption polish once scanner outputs are stable.
 6. Treat Phases 9 through 12 as adoption-at-scale work: baselines first, then policy, lifecycle cleanup, and broader schema adapters.
+7. Treat Phases 14 through 17 as prompt-corpus maintenance polish: strict gates, review inventories, category guidance, and export packets.
 
 ## Verification checklist for roadmap changes
 

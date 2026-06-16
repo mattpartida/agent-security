@@ -291,6 +291,22 @@ def render_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(sections) + "\n"
 
 
+def write_review_packet(summary: dict[str, Any], output_dir: Path, *, compact: bool = False) -> dict[str, str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "prompt-injection-corpus-summary.json"
+    markdown_path = output_dir / "prompt-injection-corpus-summary.md"
+    artifact_paths = {"json": str(json_path), "markdown": str(markdown_path)}
+    summary["artifact_paths"] = artifact_paths
+    summary["writes_to_manifest"] = False
+    summary["writes_to_fixtures"] = False
+    json_path.write_text(
+        json.dumps(summary, indent=None if compact else 2, separators=(",", ":") if compact else None, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    markdown_path.write_text(render_markdown(summary), encoding="utf-8")
+    return artifact_paths
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path, help="path to tests/fixtures/prompt-injection/manifest.json")
@@ -298,10 +314,13 @@ def main() -> int:
     parser.add_argument("--compact", action="store_true", help="emit compact JSON when --format json is used")
     parser.add_argument("--strict", action="store_true", help="exit non-zero when manifest contract issues are critical")
     parser.add_argument("--include-cases", action="store_true", help="include stable per-case inventory rows in JSON or Markdown output")
+    parser.add_argument("--output-dir", type=Path, help="write a JSON and Markdown corpus review packet to this directory")
     args = parser.parse_args()
 
     try:
         summary = summarize(args.manifest, include_cases=args.include_cases)
+        if args.output_dir:
+            write_review_packet(summary, args.output_dir, compact=args.compact)
     except (OSError, json.JSONDecodeError) as exc:
         print(f"error: unable to summarize manifest: {exc}", file=sys.stderr)
         return 2

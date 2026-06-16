@@ -362,6 +362,7 @@ python3 skills/agent-security/scripts/flag_prompt_injection_signals.py < suspici
 
 # Fixture inventory summary for detector maintenance; add --strict for CI/scheduled corpus-contract gates
 # Add --include-cases when review artifacts need per-fixture case inventory rows.
+# Add --output-dir artifacts/prompt-corpus-review to write paired JSON/Markdown review packets.
 python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py tests/fixtures/prompt-injection/manifest.json
 ```
 
