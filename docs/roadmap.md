@@ -10,13 +10,13 @@ This roadmap is the source of truth for planned `mattpartida/agent-security` imp
 - `score_prompt_injection_exposure.py` scores risky combinations across channels, browser, exec, filesystem, models, bindings, and persistence.
 - `flag_prompt_injection_signals.py` detects direct, indirect, encoded, persistence, approval-bypass, and tool-coercion prompt-injection signals.
 - Example hardened/high-risk configs and a high-risk report example demonstrate intended output.
+- Healthcheck helper scripts emit JSON/Markdown output and strict CI/scheduled-check gates.
 
 ## Active pull requests that affect the roadmap
 
-- PR #2, `feat: add markdown config risk summaries`, overlaps with **Phase 1**.
-- PR #3, `test: add prompt injection fixture corpus`, overlaps with **Phase 3**.
+No active roadmap-affecting pull requests are known as of 2026-06-01.
 
-Do not duplicate those branches when implementing roadmap work. If either PR merges, update this roadmap's baseline and mark the relevant accepted scope as shipped.
+Before starting new roadmap work, check open PRs and avoid duplicating any branch that already covers the same phase or fixture/doc area.
 
 ## Phase 1: Human-readable and machine-readable output formats
 

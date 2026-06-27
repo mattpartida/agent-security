@@ -135,3 +135,20 @@ def test_phase13_docs_readme_changelog_and_roadmap_are_in_sync():
     phase13 = roadmap.split("## Phase 13:", 1)[1].split("## Implementation order", 1)[0]
     assert "**Status:** Shipped" in phase13
     assert "tests/test_phase13_healthcheck_outputs.py" in phase13
+
+
+def test_roadmap_current_state_matches_merged_phase_work():
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    current_baseline = roadmap.split("## Current baseline", 1)[1].split(
+        "## Active pull requests that affect the roadmap",
+        1,
+    )[0]
+    assert "Healthcheck helper scripts emit JSON/Markdown output and strict CI/scheduled-check gates." in current_baseline
+
+    active_prs = roadmap.split("## Active pull requests that affect the roadmap", 1)[1].split(
+        "## Phase 1:",
+        1,
+    )[0]
+    assert "No active roadmap-affecting pull requests" in active_prs
+    assert "PR #2" not in active_prs
+    assert "PR #3" not in active_prs
