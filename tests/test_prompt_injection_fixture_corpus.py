@@ -8,6 +8,7 @@ FIXTURE_DIR = ROOT / "tests" / "fixtures" / "prompt-injection"
 MANIFEST = FIXTURE_DIR / "manifest.json"
 SIGNAL_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "flag_prompt_injection_signals.py"
 SCORE_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "score_prompt_injection_exposure.py"
+SUMMARY_SCRIPT = ROOT / "skills" / "agent-security" / "scripts" / "summarize_prompt_injection_corpus.py"
 
 
 def run_signal_fixture(name: str):
@@ -86,6 +87,226 @@ def test_exposure_fixture_scores_high_risk_agent_config():
         assert set(case["expected_factors"]).issubset(factors), case["file"]
 
 
+def test_prompt_injection_corpus_summary_script_reports_manifest_counts():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["schema_version"] == "1.0"
+    assert data["manifest"] == "tests/fixtures/prompt-injection/manifest.json"
+    assert data["ok"] is True
+    assert data["summary"] == {"critical": 0, "warn": 0, "info": 1}
+    assert data["issues"] == [
+        {
+            "level": "info",
+            "code": "corpus_summary_generated",
+            "message": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
+        }
+    ]
+    assert data["total_cases"] == 8
+    assert data["text_cases"] == 7
+    assert data["config_cases"] == 1
+    assert data["flagged_cases"] == 6
+    assert data["benign_cases"] == 1
+    assert data["kinds"]["direct"] == 1
+    assert data["expected_signals"]["secret_exfiltration"] == 2
+    assert data["expected_factors"]["browser_private_network_allowed"] == 1
+
+
+def test_prompt_injection_corpus_summary_strict_fails_closed_on_invalid_manifest(tmp_path):
+    invalid_manifest = tmp_path / "manifest.json"
+    invalid_manifest.write_text(
+        json.dumps(
+            {
+                "description": "Invalid corpus used by strict-mode regression tests.",
+                "cases": [
+                    {"file": "malicious.txt", "kind": "direct", "flagged": True, "expected_signals": []},
+                    {"file": "negative.txt", "kind": "benign", "flagged": False, "expected_signals": ["secret_exfiltration"]},
+                    {"file": "config.json", "kind": "config", "expected_severities": [], "expected_factors": []},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--strict", str(invalid_manifest)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 1
+    data = json.loads(proc.stdout)
+    assert data["ok"] is False
+    assert data["summary"]["critical"] >= 3
+    assert {issue["code"] for issue in data["issues"]} >= {
+        "malicious_case_missing_expected_signals",
+        "benign_case_has_expected_signals",
+        "config_case_missing_expected_factors",
+    }
+
+
+def test_prompt_injection_corpus_summary_script_emits_markdown_for_docs():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--format", "markdown", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    markdown = proc.stdout
+    assert "# Prompt-injection fixture corpus summary" in markdown
+    assert "| Total cases | 8 |" in markdown
+    assert "| Flagged text cases | 6 |" in markdown
+    assert "| `secret_exfiltration` | 2 |" in markdown
+    assert "| `browser_private_network_allowed` | 1 |" in markdown
+
+
+def test_prompt_injection_corpus_summary_include_cases_exports_stable_case_inventory():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--include-cases", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    cases = data["cases"]
+    assert len(cases) == data["total_cases"] == 8
+    first = cases[0]
+    assert first == {
+        "file": "benign-status-update.txt",
+        "kind": "benign",
+        "classification": "benign",
+        "expected": [],
+    }
+    config_case = next(case for case in cases if case["kind"] == "config")
+    assert config_case["classification"] == "config"
+    assert "browser_private_network_allowed" in config_case["expected"]
+    assert cases == sorted(cases, key=lambda case: case["file"])
+
+
+def test_prompt_injection_corpus_summary_markdown_include_cases_renders_case_inventory():
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--format", "markdown", "--include-cases", str(MANIFEST)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    markdown = proc.stdout
+    assert "## Case inventory" in markdown
+    assert "| File | Kind | Classification | Expected |" in markdown
+    assert "| `benign-status-update.txt` | `benign` | benign |  |" in markdown
+    assert "| `high-risk-agent-config.json` | `config` | config |" in markdown
+
+
+def test_prompt_injection_corpus_summary_output_dir_writes_review_packet(tmp_path):
+    packet_dir = tmp_path / "packet"
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(SUMMARY_SCRIPT),
+            "--include-cases",
+            "--output-dir",
+            str(packet_dir),
+            str(MANIFEST),
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    data = json.loads(proc.stdout)
+    assert data["artifact_paths"] == {
+        "json": str(packet_dir / "prompt-injection-corpus-summary.json"),
+        "markdown": str(packet_dir / "prompt-injection-corpus-summary.md"),
+    }
+    assert data["writes_to_manifest"] is False
+    assert data["writes_to_fixtures"] is False
+
+    packet_json = json.loads((packet_dir / "prompt-injection-corpus-summary.json").read_text(encoding="utf-8"))
+    packet_markdown = (packet_dir / "prompt-injection-corpus-summary.md").read_text(encoding="utf-8")
+    assert packet_json["cases"] == data["cases"]
+    assert packet_json["artifact_paths"] == data["artifact_paths"]
+    assert "# Prompt-injection fixture corpus summary" in packet_markdown
+    assert "## Case inventory" in packet_markdown
+
+
+def test_prompt_injection_corpus_summary_warns_on_undocumented_case_kind(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "description": "Unknown-kind regression fixture.",
+                "cases": [
+                    {"file": "novel.txt", "kind": "novel_social", "flagged": True, "expected_signals": ["tool_coercion"]},
+                    {"file": "benign.txt", "kind": "benign", "flagged": False, "expected_signals": []},
+                    {"file": "config.json", "kind": "config", "expected_severities": ["high"], "expected_factors": ["exec_security_full"]},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        [sys.executable, str(SUMMARY_SCRIPT), "--strict", str(manifest)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stdout
+    data = json.loads(proc.stdout)
+    assert data["ok"] is True
+    assert data["summary"] == {"critical": 0, "warn": 1, "info": 1}
+    assert {
+        "level": "warn",
+        "code": "undocumented_case_kind",
+        "message": "Case kind is not documented in the prompt-injection category guidance.",
+        "case_file": "novel.txt",
+        "kind": "novel_social",
+    } in data["issues"]
+
+
+def test_detector_quality_docs_and_roadmap_phase16_category_guidance_are_shipped():
+    docs = (ROOT / "docs" / "prompt-injection-detector-quality.md").read_text(encoding="utf-8")
+    for phrase in [
+        "category decision table",
+        "direct",
+        "indirect",
+        "encoded",
+        "obfuscated",
+        "persistence",
+        "tool_output",
+        "config",
+        "undocumented_case_kind",
+        "unknown kinds are warnings",
+    ]:
+        assert phrase in docs.lower()
+
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    phase16 = roadmap.split("## Phase 16:", 1)[1].split("## Implementation order", 1)[0]
+    assert "**Status:** Shipped" in phase16
+    assert "undocumented_case_kind" in phase16
+
+
+def test_detector_quality_docs_and_roadmap_phase17_review_packets_are_shipped():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    skill = (ROOT / "skills" / "agent-security" / "SKILL.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    roadmap = (ROOT / "docs" / "roadmap.md").read_text(encoding="utf-8")
+    phase17 = roadmap.split("## Phase 17:", 1)[1].split("## Implementation order", 1)[0]
+
+    for text in (readme, skill, changelog, phase17):
+        assert "--output-dir" in text
+    assert "**Status:** Shipped" in phase17
+    assert "artifact_paths" in phase17
+    assert "writes_to_manifest: false" in phase17
+    assert "writes_to_fixtures: false" in phase17
+
+
 def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
     docs_path = ROOT / "docs" / "prompt-injection-detector-quality.md"
     docs = docs_path.read_text(encoding="utf-8")
@@ -95,6 +316,10 @@ def test_detector_quality_docs_and_roadmap_phase3_status_are_shipped():
         "when to add a fixture",
         "tool-output exfiltration",
         "tests/fixtures/prompt-injection/manifest.json",
+        "--strict",
+        "--include-cases",
+        "case inventory",
+        "corpus summary",
     ]
     for phrase in required_phrases:
         assert phrase in docs.lower()

@@ -266,6 +266,80 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 - Strict mode exits non-zero only when the parsed posture requires attention.
 - Documentation states that the helpers parse stdin only and do not modify host state.
 
+## Phase 14: Prompt-injection corpus summary quality gates
+
+**Status:** Shipped
+**Goal:** Make prompt-injection fixture maintenance usable in CI and scheduled detector-quality checks without scraping ad-hoc output.
+
+### Shipped scope
+
+1. Added `ok`, `summary`, and `issues` fields to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` while keeping existing count fields stable.
+2. Added `--strict` so critical manifest-contract issues fail closed for CI or scheduled corpus-quality gates.
+3. Validated high-signal corpus contract issues such as flagged cases without expected signals, benign cases with expected signals, config cases without factors/severities, duplicate case files, and empty corpora.
+4. Kept Markdown inventory output human-readable by adding critical and warning issue counts to the metrics table.
+5. Updated README, skill usage notes, detector-quality docs, changelog, and corpus regression tests.
+
+### Acceptance criteria
+
+- JSON output preserves existing inventory fields and adds machine-readable `ok`, `summary`, and `issues` fields.
+- `--strict` exits non-zero when critical corpus-contract issues are present and succeeds for the shipped manifest.
+- Detector-quality documentation explains when to use strict corpus summary checks.
+
+## Phase 15: Prompt-injection case inventory exports
+
+**Status:** Shipped
+**Goal:** Make corpus review packets useful for humans and machines without forcing reviewers to open the manifest manually.
+
+### Shipped scope
+
+1. Added `--include-cases` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py`.
+2. Added stable JSON `cases` rows with `file`, `kind`, `classification`, and sorted `expected` fields.
+3. Added a Markdown `Case inventory` table for copyable review artifacts.
+4. Kept default summaries compact unless `--include-cases` is explicitly supplied.
+5. Updated README, skill usage notes, detector-quality docs, changelog, and regression tests.
+
+### Acceptance criteria
+
+- JSON case inventory rows are sorted by fixture file for stable diffs.
+- Markdown output includes a per-fixture table only when `--include-cases` is supplied.
+- The default summary output remains backward-compatible and compact.
+
+## Phase 16: Prompt-injection corpus category guidance
+
+**Status:** Shipped
+**Goal:** Add maintainer guidance for when to split a new prompt-injection fixture into a new category versus extending an existing category.
+
+### Shipped scope
+
+1. Added a category decision table to [`docs/prompt-injection-detector-quality.md`](prompt-injection-detector-quality.md) covering the documented manifest `kind` values.
+2. Added non-fatal `undocumented_case_kind` warnings to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` when fixtures use unknown category names.
+3. Kept unknown kinds as warnings, even under `--strict`, so exploratory fixtures can land before maintainers promote the category into documented guidance.
+4. Added regression coverage for unknown-kind warnings, docs guidance, and roadmap status in `tests/test_prompt_injection_fixture_corpus.py`.
+
+### Acceptance criteria
+
+- Detector-quality docs explain when to split versus extend prompt-injection categories.
+- Corpus summaries warn on unknown or undocumented fixture `kind` values.
+- Unknown kinds remain non-fatal unless a future strict policy promotes them.
+
+## Phase 17: Prompt-injection corpus review packet exports
+
+**Status:** Shipped
+**Goal:** Let maintainers generate copyable, paired JSON and Markdown review packets for corpus audits without manually redirecting multiple commands or mutating fixture state.
+
+### Shipped scope
+
+1. Added `--output-dir` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` to write `prompt-injection-corpus-summary.json` and `prompt-injection-corpus-summary.md` together.
+2. Preserved stdout behavior while adding machine-readable `artifact_paths`, `writes_to_manifest: false`, and `writes_to_fixtures: false` guardrails to packet-enabled runs.
+3. Reused `--include-cases` so generated packets can include stable per-fixture inventory rows for reviewer handoff.
+4. Updated README, skill usage notes, changelog, and regression tests for the review-packet workflow.
+
+### Acceptance criteria
+
+- `--output-dir` creates deterministic JSON and Markdown artifact names in the requested directory.
+- Packet generation reports artifact paths and explicit no-mutation guardrails.
+- The JSON packet matches stdout summary content, and the Markdown packet includes the case inventory when requested.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.
@@ -274,6 +348,7 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 4. Use Phases 4 and 5 to prevent schema and rule drift after output formats stabilize.
 5. Treat Phases 6 through 8 as repo credibility and adoption polish once scanner outputs are stable.
 6. Treat Phases 9 through 12 as adoption-at-scale work: baselines first, then policy, lifecycle cleanup, and broader schema adapters.
+7. Treat Phases 14 through 17 as prompt-corpus maintenance polish: strict gates, review inventories, category guidance, and export packets.
 
 ## Verification checklist for roadmap changes
 

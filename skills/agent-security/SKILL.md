@@ -343,6 +343,7 @@ Use these helper resources when useful:
 - `scripts/config_risk_summary.py`
 - `scripts/score_prompt_injection_exposure.py`
 - `scripts/flag_prompt_injection_signals.py`
+- `scripts/summarize_prompt_injection_corpus.py`
 - `../healthcheck/scripts/summarize_openclaw_posture.py`
 - `../healthcheck/scripts/parse_openclaw_audit.py`
 
@@ -358,6 +359,11 @@ openclaw status --deep --json | python3 skills/agent-security/scripts/score_prom
 
 # Expected input: untrusted or suspicious text on stdin
 python3 skills/agent-security/scripts/flag_prompt_injection_signals.py < suspicious-content.txt
+
+# Fixture inventory summary for detector maintenance; add --strict for CI/scheduled corpus-contract gates
+# Add --include-cases when review artifacts need per-fixture case inventory rows.
+# Add --output-dir artifacts/prompt-corpus-review to write paired JSON/Markdown review packets.
+python3 skills/agent-security/scripts/summarize_prompt_injection_corpus.py tests/fixtures/prompt-injection/manifest.json
 ```
 
 If JSON output is not supported by the local OpenClaw/Hermes command, inspect the config manually and use the scripts only with compatible JSON exports.
