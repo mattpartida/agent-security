@@ -11,7 +11,7 @@ The prompt-injection scanner is a heuristic regression detector, not a security 
 
 ## Covered attack shapes
 
-Current fixtures cover direct instruction override, indirect webpage exfiltration, encoded/base64 instruction candidates, zero-width obfuscation, fake approvals plus memory poisoning, tool-output exfiltration, benign project/status prose, and high-risk agent config exposure.
+Current fixtures cover direct instruction override, developer/admin/safety mode-toggle attempts (e.g. "enter developer mode", "switch to root mode", "turn off safety mode"), indirect webpage exfiltration, encoded/base64 instruction candidates, zero-width obfuscation, fake approvals plus memory poisoning, tool-output exfiltration, benign project/status prose, and high-risk agent config exposure.
 
 ## Known false positives
 
