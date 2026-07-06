@@ -8,6 +8,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Rule or schema changes
 
+- Added `mode_toggle` high-severity prompt-injection signal to `skills/agent-security/scripts/flag_prompt_injection_signals.py` for developer/admin/root/safety/jailbreak/DAN/god/unrestricted/sudo/debug mode-toggle attempts (e.g. "enter developer mode", "switch to root mode", "turn off safety mode"). Additive new signal only; existing signals, severities, and JSON/Markdown output shapes are unchanged.
 - Added Phase 12 schema adapter reporting (`schema.adapter`, Markdown, and SARIF properties) plus adapter normalization for OpenAI-compatible tools, Claude Desktop/MCP server configs, and GitHub Actions snippets.
 - Markdown config risk summaries now include policy/baseline suppression counts and baseline owner lifecycle tables when suppression inputs are supplied.
 - Added additive JSON output field `baseline_lifecycle` with active, expired, stale, and owner-grouped baseline suppression lifecycle state.

@@ -32,6 +32,12 @@
       "expected_signals": ["approval_bypass", "persistence_request"]
     },
     {
+      "file": "mode-toggle-override.txt",
+      "kind": "direct",
+      "flagged": true,
+      "expected_signals": ["mode_toggle", "prompt_exfiltration"]
+    },
+    {
       "file": "tool-output-exfiltration.txt",
       "kind": "tool_output",
       "flagged": true,

@@ -107,12 +107,12 @@ def test_prompt_injection_corpus_summary_script_reports_manifest_counts():
             "message": "Summary is derived from manifest expectations; run the corpus tests to verify scanner behavior.",
         }
     ]
-    assert data["total_cases"] == 8
-    assert data["text_cases"] == 7
+    assert data["total_cases"] == 9
+    assert data["text_cases"] == 8
     assert data["config_cases"] == 1
-    assert data["flagged_cases"] == 6
+    assert data["flagged_cases"] == 7
     assert data["benign_cases"] == 1
-    assert data["kinds"]["direct"] == 1
+    assert data["kinds"]["direct"] == 2
     assert data["expected_signals"]["secret_exfiltration"] == 2
     assert data["expected_factors"]["browser_private_network_allowed"] == 1
 
@@ -159,8 +159,8 @@ def test_prompt_injection_corpus_summary_script_emits_markdown_for_docs():
     assert proc.returncode == 0, proc.stderr
     markdown = proc.stdout
     assert "# Prompt-injection fixture corpus summary" in markdown
-    assert "| Total cases | 8 |" in markdown
-    assert "| Flagged text cases | 6 |" in markdown
+    assert "| Total cases | 9 |" in markdown
+    assert "| Flagged text cases | 7 |" in markdown
     assert "| `secret_exfiltration` | 2 |" in markdown
     assert "| `browser_private_network_allowed` | 1 |" in markdown
 
@@ -175,7 +175,7 @@ def test_prompt_injection_corpus_summary_include_cases_exports_stable_case_inven
     assert proc.returncode == 0, proc.stderr
     data = json.loads(proc.stdout)
     cases = data["cases"]
-    assert len(cases) == data["total_cases"] == 8
+    assert len(cases) == data["total_cases"] == 9
     first = cases[0]
     assert first == {
         "file": "benign-status-update.txt",
