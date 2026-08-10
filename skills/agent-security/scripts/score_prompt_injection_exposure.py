@@ -112,9 +112,41 @@ def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def markdown_cell(value: Any) -> str:
+    text = str(value).replace("\n", " ").replace("|", r"\|")
+    return text
+
+
+def render_markdown(result: dict[str, Any]) -> str:
+    lines = [
+        "# Prompt Injection Exposure Score",
+        "",
+        f"**Score:** {result['score']}",
+        f"**Severity:** {markdown_cell(result['severity'])}",
+        f"**Schema version:** `{SCHEMA_VERSION}`",
+        "",
+    ]
+    factors = result.get("factors", [])
+    if not factors:
+        lines.append("No exposure factors were detected. Scoring is additive and heuristic; absence of factors does not guarantee a safe deployment.")
+    else:
+        lines.extend(["## Risk factors", "", "| Factor | Points |", "| --- | --- |"])
+        for factor in factors:
+            lines.append(f"| `{markdown_cell(factor.get('factor', 'unknown'))}` | {factor.get('points', 0)} |")
+        lines.extend(["", f"**Total points:** {result['score']}"])
+    lines.extend(
+        [
+            "",
+            "Exposure scoring is heuristic only and favors recall. Combine it with enforced allowlists, approval gates, sandboxing, and least-privilege tool access.",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument("--format", choices=("json", "markdown"), default="json", help="output format")
     args = parser.parse_args()
 
     cfg, factors = load_json()
@@ -215,7 +247,10 @@ def main() -> int:
         severity = "medium"
 
     result = {"schema_version": SCHEMA_VERSION, "score": score, "severity": severity, "factors": factors}
-    print(json.dumps(result, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    if args.format == "markdown":
+        sys.stdout.write(render_markdown(result))
+    else:
+        print(json.dumps(result, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
     return 1 if severity == "error" else 0
 
 

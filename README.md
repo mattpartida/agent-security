@@ -99,6 +99,14 @@ python3 skills/agent-security/scripts/score_prompt_injection_exposure.py \
   < examples/high-risk-agent-config.json
 ```
 
+Emit the same exposure score as Markdown for PR comments or review notes:
+
+```bash
+python3 skills/agent-security/scripts/score_prompt_injection_exposure.py \
+  --format markdown \
+  < examples/high-risk-agent-config.json
+```
+
 Flag prompt-injection language in copied webpage/email/document text:
 
 ```bash
