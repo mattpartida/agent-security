@@ -149,6 +149,7 @@ def test_roadmap_current_state_matches_merged_phase_work():
         "## Phase 1:",
         1,
     )[0]
-    assert "No active roadmap-affecting pull requests" in active_prs
+    assert "check open PRs" in active_prs
+    assert "none covered reproducible packaging or release manifests" in active_prs
     assert "PR #2" not in active_prs
     assert "PR #3" not in active_prs

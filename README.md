@@ -247,13 +247,28 @@ Copyable downstream examples live in [`docs/ci-integration.md`](docs/ci-integrat
 
 ## Packaging
 
-Rebuild distributable archives with:
+Rebuild distributable archives and their release manifest with:
 
 ```bash
 ./package-skills.sh
 ```
 
-This writes packaged `.skill` archives into `dist/`.
+This writes reproducible `.skill` archives plus `dist/MANIFEST.json`. The
+manifest records each published skill's source path, file count, source digest,
+archive path, and archive SHA-256. Packaging uses an explicit published-skill
+list, single-read source snapshots, safe sorted members, fixed timestamps, and
+normalized permissions so two clean builds from the same source are
+byte-for-byte identical. Publication validates the complete set in private
+sibling staging and rolls back caught replacement failures; `--check` enforces
+the exact non-symlink artifact inventory. The hardened packager runs on POSIX
+systems; generated member names reject Windows-reserved and normalization- or
+case-colliding forms for portable extraction.
+
+Verify existing artifacts without rewriting them:
+
+```bash
+python3 scripts/package_skills.py --check
+```
 
 Install from packaged archives by importing `dist/agent-security.skill` and `dist/healthcheck.skill` into an AgentSkills-compatible runtime, or inspect/use the source tree directly for local development. See [`docs/installation-and-release.md`](docs/installation-and-release.md) for install steps, archive inspection commands, release checklist, versioning guidance, and [`CHANGELOG.md`](CHANGELOG.md) release-note categories.
 
@@ -262,10 +277,11 @@ Install from packaged archives by importing `dist/agent-security.skill` and `dis
 Run local verification:
 
 ```bash
-python3 -m compileall -q skills tests
+python3 -m compileall -q skills tests scripts
 python3 -m pytest -q
 ruff check .
 ./package-skills.sh
+python3 scripts/package_skills.py --check
 ```
 
 CI runs ruff, compileall, pytest, and packaging on every push/PR.
