@@ -32,6 +32,8 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Documentation-only updates
 
+- Upgraded first-party GitHub Actions to node24-compatible majors: `actions/checkout@v7` and `actions/setup-python@v7` in the CI workflow and the `examples/ci/github-actions/` downstream examples, with regression coverage in `tests/test_ci_actions_versions.py` against stale node20-era majors. CI tooling only; no scanner behavior change.
+
 - Added `docs/schema-adapters.md` and Phase 12 regression coverage in `tests/test_phase12_schema_adapters.py` for adapter fixtures, explicit ignored fields, SARIF/Markdown adapter reporting, and cross-platform path serialization.
 - Added `docs/baseline-lifecycle.md` and Phase 11 regression coverage in `tests/test_phase11_baseline_lifecycle.py` for generated baselines, required lifecycle metadata, stale/expired cleanup, and owner summaries.
 - Added `docs/policies.md` and `examples/policies/agent-security-policy.json` for Phase 10 policy validation, precedence, and safe review patterns.

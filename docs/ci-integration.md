@@ -81,3 +81,7 @@ High or critical findings should block merges for shared, production, or privile
 4. If the risk is intentionally accepted, document the compensating controls outside this scanner before weakening CI.
 
 Warnings and info findings can be non-blocking in early adoption, but they should still be reviewed when they involve shared channels, persistence, browser access, shell access, or sandboxing.
+
+## Action runtime versions
+
+The workflows in this repo and the copyable examples under `examples/ci/github-actions/` use `actions/checkout@v7` and `actions/setup-python@v7`, which run on the node24 runtime. Older majors such as `actions/checkout@v4` and `actions/setup-python@v5` run on node20 and accrue GitHub Actions node-deprecation annotations over time. When copying these examples, prefer the node24-compatible majors (`actions/checkout@v7`, `actions/setup-python@v7`) or newer; `tests/test_ci_actions_versions.py` guards against stale node20-era majors reappearing in runnable workflows.
