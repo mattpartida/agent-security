@@ -58,6 +58,11 @@ PATTERNS: list[tuple[str, str, str]] = [
         r"\b(this is authorized|approved by admin|approval granted|do not ask|no confirmation|bypass safety|ignore policy|skip approval)\b",
     ),
     (
+        "mode_toggle",
+        "high",
+        r"\b(enter|enable|switch(?:\s+to)?|turn\s+(?:on|off)|activate|start|engage|now\s+in)\b.{0,40}\b(developer|admin|administrator|root|debug|jailbreak|god|unrestricted|sudo|dan|do\s+anything\s+now|safety)\s+mode\b|\b(developer|admin|administrator|root|debug|jailbreak|god|unrestricted|sudo|dan|do\s+anything\s+now|safety)\s+mode\b\s+(enabled|activated|on|active)\b",
+    ),
+    (
         "secrecy_or_urgency",
         "medium",
         r"\b(do not tell the user|secretly|without notifying|urgent|immediately|act now|time sensitive)\b",
