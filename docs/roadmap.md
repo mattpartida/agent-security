@@ -365,8 +365,28 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 
 ## Phase 20: Scanner report authenticity envelopes
 
-**Status:** Planned
+**Status:** Shipped (JSON report slice)
 **Goal:** Define an optional, non-executable integrity envelope for exported JSON/SARIF reports so downstream consumers can detect accidental or malicious report mutation.
+
+### Shipped scope
+
+1. Added `--envelope-secret-file` to `skills/agent-security/scripts/config_risk_summary.py` for optional HMAC-SHA256 authenticity envelopes over the JSON report payload; output is unchanged without the flag.
+2. Envelopes are additive (`report_envelope` with `algorithm`, `payload_sha256`, `signature`, and sorted `covered_fields`) and never self-signed; signing requires `--format json` and is a usage error otherwise.
+3. Invalid, unreadable, or empty/blank secret files fail closed as structured `invalid_envelope_secret` error findings instead of unsigned or crash output.
+4. Added the dependency-light `skills/agent-security/scripts/verify_report_envelope.py` verifier with mutually exclusive `--secret-file`/`--secret-env` sources, constant-time signature comparison, stable exit codes (0/1/2), and machine-readable failure codes for missing, malformed, tampered, or wrongly signed reports.
+5. Documented envelope semantics, verifier usage, secret generation/storage, rotation guidance, and CI composition in [`docs/report-envelopes.md`](report-envelopes.md), with README, skill, changelog, and CI-integration cross-links.
+6. Added `tests/test_phase20_report_envelopes.py` covering compatibility, determinism, secret-file newline tolerance, fail-closed secret errors, format gating, verifier acceptance/rejection matrix, and documentation sync.
+
+### Acceptance criteria
+
+- JSON output is byte-identical to previous behavior when no envelope secret is supplied.
+- Envelope signatures are deterministic for identical inputs and secrets.
+- Verification detects payload tampering, forged signatures, wrong secrets, missing envelopes, and unsupported algorithms with distinct error codes.
+
+### Remaining follow-ups
+
+- SARIF and Markdown envelope coverage (if needed by downstream consumers).
+- Key-identifier support (`kid`) for concurrent multi-secret verification during rotations.
 
 ## Implementation order
 
