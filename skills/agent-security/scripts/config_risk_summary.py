@@ -5,6 +5,8 @@ The script is intentionally schema-tolerant: OpenClaw/Hermes config shapes can d
 so wrong-type fields become findings instead of Python tracebacks.
 """
 import argparse
+import hashlib
+import hmac
 import json
 import re
 import sys
@@ -915,6 +917,63 @@ def count_by_severity(findings: list[dict[str, Any]]) -> dict[str, int]:
     return counts
 
 
+def load_envelope_secret(path: str | None) -> tuple[bytes | None, list[dict[str, Any]]]:
+    """Load the raw secret for report signing.
+
+    Returns (secret, errors). The secret is read as UTF-8 text with at most one
+    trailing newline stripped, mirroring common secret-file conventions. An
+    empty/blank secret is rejected so callers fail closed instead of signing
+    reports with a trivially guessable key.
+    """
+    if not path:
+        return None, []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            raw = fh.read()
+    except OSError as exc:
+        return None, [envelope_secret_error(f"could not read envelope secret file: {exc}", path)]
+    except UnicodeDecodeError as exc:
+        return None, [envelope_secret_error(f"envelope secret file is not valid UTF-8 text: {exc}", path)]
+    secret = raw[:-1] if raw.endswith("\n") else raw
+    if not secret.strip():
+        return None, [envelope_secret_error("envelope secret file is empty or blank", path)]
+    return secret.encode("utf-8"), []
+
+
+def envelope_secret_error(message: str, path: str) -> dict[str, Any]:
+    return {
+        "severity": "error",
+        "risk": "invalid_envelope_secret",
+        "field": "report_envelope",
+        "message": message,
+        "envelope_secret_path": path,
+    }
+
+
+def canonical_payload_bytes(payload: Any) -> bytes:
+    """Serialize the signed payload deterministically (sorted keys, tight separators)."""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def build_report_envelope(summary: dict[str, Any], secret: bytes) -> dict[str, Any]:
+    """Build the Phase 20 HMAC-SHA256 authenticity envelope over the JSON summary.
+
+    The envelope signs the full summary minus the ``report_envelope`` key itself so
+    downstream consumers can detect accidental or malicious report mutation. The
+    envelope is an integrity control, not encryption: it hides nothing.
+    """
+    payload = {key: value for key, value in summary.items() if key != "report_envelope"}
+    payload_bytes = canonical_payload_bytes(payload)
+    digest = hashlib.sha256(payload_bytes).hexdigest()
+    signature = hmac.new(secret, digest.encode("ascii"), hashlib.sha256).hexdigest()
+    return {
+        "algorithm": "hmac-sha256",
+        "payload_sha256": digest,
+        "signature": signature,
+        "covered_fields": sorted(payload.keys()),
+    }
+
+
 def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
     schema_adapter = summary.get("schema", {}).get("adapter", "canonical")
     findings_by_rule_id = {sarif_rule_id(finding): finding for finding in summary["findings"]}
@@ -996,15 +1055,20 @@ def main() -> int:
     parser.add_argument("--generate-baseline", action="store_true", help="emit a baseline for current findings with TODO lifecycle metadata")
     parser.add_argument("--fail-on-stale-baseline", action="store_true", help="exit nonzero when baseline entries no longer match findings")
     parser.add_argument("--fail-on-expired-baseline", action="store_true", help="exit nonzero when baseline entries are expired")
+    parser.add_argument(
+        "--envelope-secret-file",
+        help="sign the JSON report with an HMAC-SHA256 authenticity envelope using the secret in this UTF-8 text file",
+    )
     args = parser.parse_args()
 
     policy, policy_errors = load_policy(args.policy)
     baseline_suppressions, baseline_errors = load_baseline(args.baseline)
+    envelope_secret, envelope_errors = load_envelope_secret(args.envelope_secret_file)
     cfg, initial_findings, raw_input = load_json()
     schema_adapter = schema_adapter_name(cfg) if cfg is not None else "invalid"
     if cfg is not None and not policy_errors:
         cfg = normalize_config_shape(cfg)
-    findings: list[dict[str, Any]] = list(policy_errors) + list(baseline_errors) + list(initial_findings)
+    findings: list[dict[str, Any]] = list(policy_errors) + list(baseline_errors) + list(envelope_errors) + list(initial_findings)
 
     def add(severity: str, risk: str, **extra: Any) -> None:
         item: dict[str, Any] = {"severity": severity, "risk": risk}
@@ -1164,11 +1228,16 @@ def main() -> int:
             "counts": count_by_severity(suppressed_findings),
         },
     }
+    if args.envelope_secret_file and args.format != "json":
+        print("--envelope-secret-file requires --format json; envelopes sign the JSON report payload", file=sys.stderr)
+        return 2
     if args.format == "markdown":
         print(render_markdown(summary))
     elif args.format == "sarif":
         print(json.dumps(render_sarif(summary), separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
     else:
+        if envelope_secret is not None:
+            summary["report_envelope"] = build_report_envelope(summary, envelope_secret)
         print(json.dumps(summary, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
 
     fail_on = args.fail_on or ("high" if args.strict else None)

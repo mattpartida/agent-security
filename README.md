@@ -84,6 +84,21 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
   > agent-security.sarif
 ```
 
+Sign the JSON report with an optional HMAC-SHA256 authenticity envelope so downstream consumers can detect report mutation:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --envelope-secret-file agent-security-report.key \
+  < examples/high-risk-agent-config.json \
+  > report.json
+
+python3 skills/agent-security/scripts/verify_report_envelope.py \
+  --secret-file agent-security-report.key \
+  < report.json
+```
+
+See [`docs/report-envelopes.md`](docs/report-envelopes.md) for envelope fields, verifier exit codes, secret handling, and rotation guidance.
+
 JSON, Markdown, and SARIF findings include `evidence_paths` such as
 `browser.ssrfPolicy.dangerouslyAllowPrivateNetwork` or
 `bindings[0].match.peer.kind`. JSON and SARIF also include best-effort
@@ -165,6 +180,7 @@ Key files:
 - `skills/agent-security/scripts/config_risk_summary.py` — schema-tolerant config risk summary
 - `skills/agent-security/scripts/score_prompt_injection_exposure.py` — exposure scoring for agent configs
 - `skills/agent-security/scripts/flag_prompt_injection_signals.py` — prompt-injection text detector
+- `skills/agent-security/scripts/verify_report_envelope.py` — HMAC-SHA256 authenticity envelope verifier for exported JSON reports
 - `docs/prompt-injection-detector-quality.md` — detector-quality notes, known false positives/negatives, and fixture guidance
 - `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` — JSON/Markdown inventory summaries for the prompt-injection fixture manifest
 - `docs/config-shapes.md` — canonical config fields, supported aliases, and real-world fixture guidance

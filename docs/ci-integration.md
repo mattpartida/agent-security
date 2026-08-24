@@ -61,6 +61,28 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
 
 For release branches or security-sensitive config changes, run `--strict` locally so high or critical findings fail before CI does.
 
+## Signed report artifacts
+
+When a scan report is stored or forwarded for later review, sign it at scan time
+and verify it at review time with an HMAC-SHA256 authenticity envelope. Store the
+signing secret in your CI secret store and inject it as a file or environment
+variable; never commit it.
+
+```yaml
+      - name: Scan and sign report
+        run: |
+          python3 skills/agent-security/scripts/config_risk_summary.py \
+            --envelope-secret-file "$REPORT_SECRET_FILE" \
+            < examples/high-risk-agent-config.json > agent-security-report.json
+          python3 skills/agent-security/scripts/verify_report_envelope.py \
+            --secret-file "$REPORT_SECRET_FILE" \
+            < agent-security-report.json
+```
+
+The verifier fails the job (exit 1) on tampered or unsigned reports. See
+[`report-envelopes.md`](report-envelopes.md) for envelope fields, exit codes,
+secret generation, and rotation guidance.
+
 ## Minimal permissions
 
 | Integration | Minimum permissions | Notes |

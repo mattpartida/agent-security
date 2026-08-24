@@ -344,6 +344,7 @@ Use these helper resources when useful:
 - `scripts/score_prompt_injection_exposure.py`
 - `scripts/flag_prompt_injection_signals.py`
 - `scripts/summarize_prompt_injection_corpus.py`
+- `scripts/verify_report_envelope.py`
 - `../healthcheck/scripts/summarize_openclaw_posture.py`
 - `../healthcheck/scripts/parse_openclaw_audit.py`
 
@@ -355,6 +356,8 @@ openclaw status --deep --json | python3 skills/agent-security/scripts/config_ris
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --policy examples/policies/agent-security-policy.json
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --generate-baseline > agent-security-baseline.json
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --baseline agent-security-baseline.json --fail-on-expired-baseline
+openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --envelope-secret-file agent-security-report.key > report.json
+python3 skills/agent-security/scripts/verify_report_envelope.py --secret-file agent-security-report.key < report.json
 openclaw status --deep --json | python3 skills/agent-security/scripts/score_prompt_injection_exposure.py
 
 # Expected input: untrusted or suspicious text on stdin
