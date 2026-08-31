@@ -14,9 +14,7 @@ This roadmap is the source of truth for planned `mattpartida/agent-security` imp
 
 ## Active pull requests that affect the roadmap
 
-No active roadmap-affecting pull requests are known as of 2026-06-01.
-
-Before starting new roadmap work, check open PRs and avoid duplicating any branch that already covers the same phase or fixture/doc area.
+Before starting new roadmap work, check open PRs and avoid duplicating any branch that already covers the same phase or fixture/doc area. Phase 18 planning checked open PRs #7 through #9; none covered reproducible packaging or release manifests.
 
 ## Phase 1: Human-readable and machine-readable output formats
 
@@ -340,6 +338,36 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 - Packet generation reports artifact paths and explicit no-mutation guardrails.
 - The JSON packet matches stdout summary content, and the Markdown packet includes the case inventory when requested.
 
+## Phase 18: Reproducible skill archives and release manifests
+
+**Status:** Shipped
+**Goal:** Make packaged skill releases deterministic, source-authoritative, and independently verifiable before import or publication.
+
+### Shipped scope
+
+1. Added a POSIX-only `scripts/package_skills.py` with an explicit published-skill list, single-read source snapshots, sorted portable archive members, fixed timestamps, normalized permissions, cache exclusions, and no-follow symlink rejection.
+2. Added deterministic `dist/MANIFEST.json` output with source paths, archive paths, file counts, source SHA-256 values binding member path/bytes/mode, and archive SHA-256 values.
+3. Added `--check` to recompute expected artifacts and reject exact-inventory drift, including missing, changed, extra, directory, non-regular, or symlink entries, without rewriting the output directory.
+4. Kept `./package-skills.sh` as the backwards-compatible entry point while delegating to the dependency-light Python packager.
+5. Added private sibling staging, descriptor-relative publication, and rollback of the complete prior artifact set on caught publication failures; crash/power-loss atomicity is explicitly out of scope and must be followed by `--check`.
+6. Added `tests/test_phase18_reproducible_packages.py` covering reproducibility, source/archive parity and hashing, permissions, cache exclusions, source/output symlink attacks, ambiguous member names, exact inventory, snapshot mutation, publication rollback, and documentation.
+
+### Acceptance criteria
+
+- Two clean builds from identical source trees are byte-for-byte equal.
+- Every archive member maps to an authoritative source file and unsafe/cache/symlink content is rejected.
+- `python3 scripts/package_skills.py --check` detects tampering without changing the checked artifacts.
+
+## Phase 19: Tagged release automation and attestations
+
+**Status:** Planned
+**Goal:** Add a review-gated tagged-release workflow that publishes verified archives, manifest digests, and provenance without granting pull requests release permissions.
+
+## Phase 20: Scanner report authenticity envelopes
+
+**Status:** Planned
+**Goal:** Define an optional, non-executable integrity envelope for exported JSON/SARIF reports so downstream consumers can detect accidental or malicious report mutation.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.
@@ -349,16 +377,18 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 5. Treat Phases 6 through 8 as repo credibility and adoption polish once scanner outputs are stable.
 6. Treat Phases 9 through 12 as adoption-at-scale work: baselines first, then policy, lifecycle cleanup, and broader schema adapters.
 7. Treat Phases 14 through 17 as prompt-corpus maintenance polish: strict gates, review inventories, category guidance, and export packets.
+8. Treat Phases 18 through 20 as release and artifact-integrity work: reproducible packages first, then reviewed release automation and optional report envelopes.
 
 ## Verification checklist for roadmap changes
 
 For docs-only roadmap edits:
 
 ```bash
-python -m compileall -q skills tests
+python -m compileall -q skills tests scripts
 python -m pytest -q
 ruff check .
 ./package-skills.sh
+python scripts/package_skills.py --check
 ```
 
 For implementation phases, also run the most focused touched test file first, then the full checklist above.

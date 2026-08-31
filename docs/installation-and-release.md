@@ -15,6 +15,7 @@ The command writes:
 ```text
 dist/agent-security.skill
 dist/healthcheck.skill
+dist/MANIFEST.json
 ```
 
 Import those `.skill` archives with the AgentSkills-compatible import flow for your agent runtime. If your runtime supports importing local files, select the archive from `dist/`. If it expects unpacked source, unzip the archive into the runtime's skills directory while preserving the top-level skill folder name.
@@ -72,6 +73,56 @@ python3 -m pytest tests/test_phase7_packaging_release.py -q
 
 The integrity test checks for required `SKILL.md`, `references/`, and `scripts/` members, rejects corrupt zip members, and guards against unsafe absolute or parent-directory archive paths.
 
+## Reproducible archives and release manifest
+
+`scripts/package_skills.py` treats `skills/agent-security/` and
+`skills/healthcheck/` as the authoritative sources. It writes archive members in
+sorted order with fixed timestamps and normalized file permissions, excludes
+cache files, and refuses symlinked source roots, ancestry, or content. Each
+regular source file is opened without following links and read into one immutable
+snapshot; the archive bytes and source digest are both derived from that same
+snapshot. The source digest binds each archive member path, its bytes, and its
+normalized executable mode (`0644` or `0755`). Cross-platform ambiguous member
+names (including backslashes, drive-like names, dot components, controls, and
+invalid Unicode), reserved device basenames, trailing dots/spaces, and portable
+case-fold or Unicode-normalization collisions are rejected.
+
+The hardened packager is POSIX-only because it relies on directory-descriptor
+and no-follow filesystem operations that are not available with equivalent
+semantics on native Windows. The generated member names are portable for common
+ZIP consumers, but packaging itself should run on Linux or macOS. Byte-for-byte
+reproducibility is guaranteed under a fixed Python and zlib toolchain when the
+source bytes and modes are identical; the manifest SHA-256 values remain the
+release verification authority across different build environments.
+
+`dist/MANIFEST.json` records the explicit published skill set, source and
+archive paths, file counts, source-tree SHA-256 values, and archive SHA-256
+values. Verify an already-built release directory without changing it:
+
+```bash
+python3 scripts/package_skills.py --check
+```
+
+Check mode computes a clean rebuild in memory and compares bytes for both skill
+archives and the manifest. It enforces the exact artifact inventory: missing,
+changed, stale, extra, directory, non-regular, or symlink entries fail without
+being opened through a link. Artifact drift fails with exit code 1; packaging or
+source-validation errors fail with exit code 2.
+
+Normal publication first writes and validates the complete new artifact set in
+an owner-private sibling staging directory. The output root and every existing
+artifact must be non-symlinked regular filesystem objects, and publication uses
+retained directory descriptors rather than following destination links. The
+publisher refuses unexpected existing entries instead of deleting them. On caught
+replacement errors, it rolls back the complete pre-build artifact set before
+returning failure; generation and staging errors publish nothing.
+
+This is a fail-closed process-level transaction, not an impossible atomic
+multi-file filesystem swap. Readers can observe the short ordered replacement
+window, and process interruption or power loss can stop between replacements.
+Concurrent modification is unsupported. After any interruption, run `--check`;
+do not release unless the exact inventory and every byte match.
+
 ## Release checklist
 
 Before tagging or publishing a release, complete this checklist from a clean checkout:
@@ -82,10 +133,11 @@ Before tagging or publishing a release, complete this checklist from a clean che
    ```
 2. Run the local quality gate:
    ```bash
-   python3 -m compileall -q skills tests
+   python3 -m compileall -q skills tests scripts
    python3 -m pytest -q
    ruff check .
    ./package-skills.sh
+   python3 scripts/package_skills.py --check
    git diff --check
    ```
 3. Review rule docs:
@@ -98,7 +150,7 @@ Before tagging or publishing a release, complete this checklist from a clean che
    - `examples/high-risk-agent-config.json`
    - `examples/hardened-agent-config.json`
 5. Run a No-real-secret scan over changed docs, fixtures, and archives. Do not publish real credentials, private URLs, customer data, tokens, cookies, or live exploit infrastructure.
-6. Inspect archive contents with the command in this guide and confirm only intended skill files are packaged.
+6. Inspect `dist/MANIFEST.json`, verify the recorded SHA-256 values, and confirm only intended skill files are packaged.
 7. Update `CHANGELOG.md` with release notes under the correct categories.
 8. Confirm GitHub Actions is green for the release commit before tagging.
 
