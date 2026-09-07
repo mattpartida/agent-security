@@ -123,6 +123,15 @@ window, and process interruption or power loss can stop between replacements.
 Concurrent modification is unsupported. After any interruption, run `--check`;
 do not release unless the exact inventory and every byte match.
 
+## Tagged release automation
+
+Tag pushes matching `v*.*.*` are verified and published by the Release workflow
+described in [`docs/release-automation.md`](release-automation.md). The workflow
+runs the full quality gate, rebuilds the archives deterministically, verifies them
+with `scripts/verify_release_gate.py`, attests build provenance, and attaches
+`agent-security.skill`, `healthcheck.skill`, and `MANIFEST.json` to the GitHub
+release. See that guide for the maintainer release flow and retry path.
+
 ## Release checklist
 
 Before tagging or publishing a release, complete this checklist from a clean checkout:

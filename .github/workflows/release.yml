@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+jobs:
+  release:
+    name: Verify and publish tagged release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install test tools
+        run: python -m pip install --upgrade pip pytest ruff
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Compile scripts
+        run: python -m compileall -q skills tests scripts
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Build skill archives
+        run: ./package-skills.sh
+
+      - name: Verify release gate
+        run: python3 scripts/verify_release_gate.py "${GITHUB_REF_NAME}" --commit "${GITHUB_SHA}"
+
+      - name: Attest build provenance for skill archives
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/agent-security.skill
+            dist/healthcheck.skill
+
+      - name: Publish GitHub release
+        run: |
+          set -euo pipefail
+          NOTES_FILE="$(mktemp)"
+          printf 'See CHANGELOG.md for the %s release notes.\n' "${GITHUB_REF_NAME}" > "${NOTES_FILE}"
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file "${NOTES_FILE}"
+          gh release upload "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            dist/agent-security.skill dist/healthcheck.skill dist/MANIFEST.json
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -360,8 +360,21 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 
 ## Phase 19: Tagged release automation and attestations
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Add a review-gated tagged-release workflow that publishes verified archives, manifest digests, and provenance without granting pull requests release permissions.
+
+### Shipped scope
+
+1. Added [`scripts/verify_release_gate.py`](../scripts/verify_release_gate.py), a fail-closed pre-release gate that verifies stable tag shape, tag/commit binding with annotated-tag peeling, a matching `CHANGELOG.md` version section, exact dist inventory, manifest structure, archive SHA-256 digests against the manifest, a secret-shaped content scan over packaged archives, and the Phase 18 deterministic rebuild check.
+2. Added [`docs/release-automation.md`](release-automation.md) covering the workflow's steps, gate checks, maintainer release flow, retry path, and explicit non-goals for pull-request permissions.
+3. Added `.github/workflows/release.yml`, triggered only by `v*.*.*` tag pushes, with job-scoped `contents: write`, `attestations: write`, and `id-token: write` permissions, `persist-credentials: false` checkout, the full CI quality gate, deterministic rebuild, the release gate, `actions/attest-build-provenance@v4` attestations for both skill archives, and `gh release create --verify-tag` publication with `agent-security.skill`, `healthcheck.skill`, and `MANIFEST.json` attached.
+4. Added `tests/test_phase19_release_gate.py` covering tag-shape validation, changelog section ordering, dist inventory/manifest/digest failure modes, annotated-tag commit binding, secret-scan reporting without echoing matches, packager-check drift detection, end-to-end gate pass/fail runs, and workflow least-privilege shape.
+
+### Acceptance criteria
+
+- Pushing a `vX.Y.Z` tag runs the quality gate, rebuild, release gate, and attestation steps; any failure blocks publication.
+- Pull requests never gain release permissions from this workflow.
+- The gate fails closed on tag/commit mismatch, missing changelog sections, artifact drift, digest mismatch, and secret-shaped archive content.
 
 ## Phase 20: Scanner report authenticity envelopes
 
