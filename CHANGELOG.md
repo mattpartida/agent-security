@@ -20,6 +20,8 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Script CLI changes
 
+- Added `scripts/verify_release_gate.py` as a fail-closed pre-release gate for tagged releases: stable tag shape, tag/commit binding (including annotated-tag peeling), changelog version-section coverage, exact dist inventory, manifest validation, archive digest verification, secret-shaped archive scanning, and the Phase 18 deterministic rebuild check. Exit `0` on pass, `1` on gate failure, `2` on usage errors; no repository, dist, or remote mutation.
+- Added the tag-gated Release workflow (`.github/workflows/release.yml`) that runs the quality gate, rebuilds archives, runs the release gate, attests build provenance for both `.skill` archives, and publishes the GitHub release with `--verify-tag`; job-scoped permissions only, and pull requests never receive release permissions. Documented in `docs/release-automation.md` with regression coverage in `tests/test_phase19_release_gate.py`.
 - Replaced ad-hoc ZIP packaging with reproducible `scripts/package_skills.py`, deterministic `dist/MANIFEST.json` release metadata, and a non-mutating `--check` drift gate while preserving `./package-skills.sh`.
 - Added `--format json|markdown` to `skills/agent-security/scripts/flag_prompt_injection_signals.py` for review-friendly prompt-injection signal summaries while keeping JSON as the default.
 - Added `--output-dir` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` for paired JSON/Markdown prompt-corpus review packets with no manifest or fixture mutation.
