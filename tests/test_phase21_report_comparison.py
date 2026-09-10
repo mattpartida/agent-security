@@ -217,7 +217,6 @@ def test_phase21_docs_examples_and_roadmap() -> None:
     assert "docs/report-comparison.md" in readme
     assert "## Phase 21:" in roadmap
     assert "**Status:** Shipped" in roadmap.split("## Phase 21:", 1)[1].split("## Phase 22:", 1)[0]
-    assert "**Status:** Planned" in roadmap.split("## Phase 22:", 1)[1].split("## Phase 23:", 1)[0]
     assert "--compare-reports" in changelog
     assert "--fail-on-new" in comparison
     assert "fingerprint" in comparison

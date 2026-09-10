@@ -139,6 +139,110 @@ def markdown_cell(value: Any) -> str:
     return text.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
 
 
+def start_line_for_offset(text: str, start: Any) -> int:
+    if not isinstance(start, int) or start < 0:
+        return 1
+    return text.count("\n", 0, start) + 1
+
+
+def sarif_level(severity: str) -> str:
+    return {"high": "error", "medium": "warning", "low": "note"}.get(severity, "warning")
+
+
+def sarif_text(value: Any) -> str:
+    return str(value or "").replace("\r", " ").replace("\n", " ")
+
+
+SIGNAL_RULES: dict[str, dict[str, str]] = {
+    name: {"severity": severity, "description": name.replace("_", " ")} for name, severity, _pattern in PATTERNS
+}
+SIGNAL_RULES.update(
+    {
+        "zero_width_obfuscation": {
+            "severity": "medium",
+            "description": "Zero-width Unicode characters that can hide injected instructions.",
+        },
+        "large_hex_blob": {
+            "severity": "low",
+            "description": "Large hexadecimal blob that may hide encoded instructions.",
+        },
+        "encoded_instruction_candidate": {
+            "severity": "medium",
+            "description": "Base64-like blob that decodes to instruction-like text.",
+        },
+    }
+)
+
+
+def render_sarif(result: dict[str, Any], text: str) -> dict[str, Any]:
+    rules_by_id: dict[str, dict[str, Any]] = {}
+    for rule_id, metadata in SIGNAL_RULES.items():
+        rules_by_id[rule_id] = {
+            "id": rule_id,
+            "name": rule_id,
+            "shortDescription": {"text": rule_id},
+            "fullDescription": {"text": metadata["description"]},
+            "properties": {"default_severity": metadata["severity"]},
+        }
+    results = []
+    for hit in result["signals"]:
+        rule_id = hit.get("signal") or "prompt_injection_signal"
+        if rule_id not in rules_by_id:
+            rules_by_id[rule_id] = {
+                "id": rule_id,
+                "name": rule_id,
+                "shortDescription": {"text": rule_id},
+                "fullDescription": {"text": rule_id.replace("_", " ")},
+                "properties": {"default_severity": hit.get("severity", "medium")},
+            }
+        properties = {
+            "signal": rule_id,
+            "severity": hit.get("severity"),
+            "snippet": hit.get("snippet"),
+        }
+        if hit.get("decoded_preview"):
+            properties["decoded_preview"] = str(hit["decoded_preview"])[:200]
+        results.append(
+            {
+                "ruleId": rule_id,
+                "level": sarif_level(str(hit.get("severity", "medium"))),
+                "message": {"text": sarif_text(hit.get("snippet") or rule_id)},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": "stdin"},
+                            "region": {"startLine": start_line_for_offset(text, hit.get("start"))},
+                        }
+                    }
+                ],
+                "properties": properties,
+            }
+        )
+    return {
+        "$schema": "https://json.schemastore.org/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "agent-security flag_prompt_injection_signals.py",
+                        "informationUri": "https://github.com/mattpartida/agent-security",
+                        "rules": [rules_by_id[rule_id] for rule_id in sorted(rules_by_id)],
+                    }
+                },
+                "results": results,
+                "properties": {
+                    "schema_version": result["schema_version"],
+                    "flagged": result["flagged"],
+                    "source": result["source"],
+                    "max_severity": result["max_severity"],
+                    "truncated": result["truncated"],
+                },
+            }
+        ],
+    }
+
+
 def render_markdown(result: dict[str, Any]) -> str:
     lines = [
         "# Prompt Injection Signal Summary",
@@ -173,7 +277,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", choices=["trusted", "untrusted", "unknown"], default="unknown")
     parser.add_argument("--max-bytes", type=int, default=MAX_BYTES_DEFAULT)
-    parser.add_argument("--format", choices=("json", "markdown"), default="json")
+    parser.add_argument("--format", choices=("json", "markdown", "sarif"), default="json")
     parser.add_argument("--compact", action="store_true")
     args = parser.parse_args()
 
@@ -198,6 +302,15 @@ def main() -> int:
     }
     if args.format == "markdown":
         sys.stdout.write(render_markdown(result))
+    elif args.format == "sarif":
+        print(
+            json.dumps(
+                render_sarif(result, text),
+                separators=(",", ":") if args.compact else None,
+                indent=None if args.compact else 2,
+                sort_keys=True,
+            )
+        )
     else:
         print(
             json.dumps(

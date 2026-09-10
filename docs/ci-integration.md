@@ -28,6 +28,15 @@ permissions:
 
 Do not add broader write permissions for SARIF-only scans.
 
+Prompt-injection signal and exposure scanners can emit SARIF the same way:
+
+```bash
+python3 skills/agent-security/scripts/flag_prompt_injection_signals.py --format sarif
+python3 skills/agent-security/scripts/score_prompt_injection_exposure.py --format sarif
+```
+
+See [`examples/ci/github-actions/agent-security-prompt-sarif.yml`](../examples/ci/github-actions/agent-security-prompt-sarif.yml) for a copyable upload workflow. JSON remains the default for both scanners.
+
 ## PR comment markdown
 
 For a human-readable PR comment, render Markdown and post it with an existing review/comment action or your platform's bot token:

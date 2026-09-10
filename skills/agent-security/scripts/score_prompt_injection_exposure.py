@@ -112,9 +112,89 @@ def normalize_config_shape(config: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def sarif_level(severity: str) -> str:
+    return {
+        "error": "error",
+        "critical": "error",
+        "high": "error",
+        "medium": "warning",
+        "low": "note",
+    }.get(severity, "warning")
+
+
+def sarif_text(value: Any) -> str:
+    return str(value or "").replace("\r", " ").replace("\n", " ")
+
+
+def render_sarif(result: dict[str, Any]) -> dict[str, Any]:
+    overall = str(result.get("severity", "low"))
+    rules_by_id: dict[str, dict[str, Any]] = {}
+    results = []
+    for factor in result.get("factors", []):
+        if not isinstance(factor, dict):
+            continue
+        rule_id = str(factor.get("factor") or "exposure_factor")
+        factor_severity = str(factor.get("severity") or overall)
+        if rule_id not in rules_by_id:
+            rules_by_id[rule_id] = {
+                "id": rule_id,
+                "name": rule_id,
+                "shortDescription": {"text": rule_id},
+                "fullDescription": {"text": rule_id.replace("_", " ")},
+                "properties": {"default_severity": factor_severity},
+            }
+        properties = {
+            "factor": rule_id,
+            "points": factor.get("points", 0),
+            "severity": factor_severity,
+        }
+        if factor.get("fields") is not None:
+            properties["fields"] = factor["fields"]
+        if factor.get("message") is not None:
+            properties["message"] = factor["message"]
+        results.append(
+            {
+                "ruleId": rule_id,
+                "level": sarif_level(factor_severity),
+                "message": {"text": sarif_text(factor.get("message") or rule_id)},
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": "stdin"},
+                            "region": {"startLine": 1},
+                        }
+                    }
+                ],
+                "properties": properties,
+            }
+        )
+    return {
+        "$schema": "https://json.schemastore.org/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "agent-security score_prompt_injection_exposure.py",
+                        "informationUri": "https://github.com/mattpartida/agent-security",
+                        "rules": [rules_by_id[rule_id] for rule_id in sorted(rules_by_id)],
+                    }
+                },
+                "results": results,
+                "properties": {
+                    "schema_version": result.get("schema_version"),
+                    "score": result.get("score", 0),
+                    "severity": overall,
+                },
+            }
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--compact", action="store_true", help="emit compact JSON")
+    parser.add_argument("--format", choices=("json", "sarif"), default="json", help="output format")
     args = parser.parse_args()
 
     cfg, factors = load_json()
@@ -215,7 +295,10 @@ def main() -> int:
         severity = "medium"
 
     result = {"schema_version": SCHEMA_VERSION, "score": score, "severity": severity, "factors": factors}
-    print(json.dumps(result, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    if args.format == "sarif":
+        print(json.dumps(render_sarif(result), separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    else:
+        print(json.dumps(result, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
     return 1 if severity == "error" else 0
 
 

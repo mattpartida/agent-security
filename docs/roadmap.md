@@ -389,8 +389,22 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 
 ## Phase 22: SARIF output for remaining scanners
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Add SARIF 2.1.0 output to prompt-injection signal and exposure scanners so GitHub Code Scanning can consume those results without wrapping `config_risk_summary.py`.
+
+### Shipped scope
+
+1. Added `--format sarif` to `skills/agent-security/scripts/flag_prompt_injection_signals.py` while keeping JSON default and existing Markdown output.
+2. Added `--format json|sarif` to `skills/agent-security/scripts/score_prompt_injection_exposure.py` with byte-identical JSON when `--format` is omitted.
+3. Emitted SARIF 2.1.0 runs with driver rule metadata, result levels, stdin locations, and scanner-specific properties (`signal`/`factor`, score, flagged, source).
+4. Preserved exposure scanner error exit codes when rendering SARIF for invalid input.
+5. Added [`examples/ci/github-actions/agent-security-prompt-sarif.yml`](../examples/ci/github-actions/agent-security-prompt-sarif.yml) with `contents: read` and `security-events: write`.
+
+### Acceptance criteria
+
+- Both scanners emit valid SARIF 2.1.0 with rules covering emitted results.
+- JSON remains the default and is unchanged when `--format json` is explicit.
+- Copyable CI examples upload SARIF without extra write permissions.
 
 ## Phase 23: Combined local preflight CLI
 
