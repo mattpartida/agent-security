@@ -20,6 +20,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Script CLI changes
 
+- Added additive JSON/SARIF finding `fingerprint` values plus `--compare-reports` and `--fail-on-new` to `skills/agent-security/scripts/config_risk_summary.py` for stored-report regression gates.
 - Replaced ad-hoc ZIP packaging with reproducible `scripts/package_skills.py`, deterministic `dist/MANIFEST.json` release metadata, and a non-mutating `--check` drift gate while preserving `./package-skills.sh`.
 - Added `--format json|markdown` to `skills/agent-security/scripts/flag_prompt_injection_signals.py` for review-friendly prompt-injection signal summaries while keeping JSON as the default.
 - Added `--output-dir` to `skills/agent-security/scripts/summarize_prompt_injection_corpus.py` for paired JSON/Markdown prompt-corpus review packets with no manifest or fixture mutation.
@@ -33,6 +34,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Documentation-only updates
 
+- Added `docs/report-comparison.md` and `examples/ci/github-actions/agent-security-compare-reports.yml` for stored config-risk report comparison.
 - Added `docs/schema-adapters.md` and Phase 12 regression coverage in `tests/test_phase12_schema_adapters.py` for adapter fixtures, explicit ignored fields, SARIF/Markdown adapter reporting, and cross-platform path serialization.
 - Added `docs/baseline-lifecycle.md` and Phase 11 regression coverage in `tests/test_phase11_baseline_lifecycle.py` for generated baselines, required lifecycle metadata, stale/expired cleanup, and owner summaries.
 - Added `docs/policies.md` and `examples/policies/agent-security-policy.json` for Phase 10 policy validation, precedence, and safe review patterns.

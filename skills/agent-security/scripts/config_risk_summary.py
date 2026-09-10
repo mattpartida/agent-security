@@ -5,14 +5,17 @@ The script is intentionally schema-tolerant: OpenClaw/Hermes config shapes can d
 so wrong-type fields become findings instead of Python tracebacks.
 """
 import argparse
+import hashlib
 import json
 import re
 import sys
 from datetime import date, timedelta
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
+FINGERPRINT_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
+MAX_COMPARISON_REPORT_BYTES = 2_000_000
 SMALL_MODEL_RE = re.compile(r"(^|[^0-9])([1-9]|1[0-4])b([^0-9]|$)", re.I)
 LOCAL_MODEL_MARKERS = ("ollama", "llama.cpp", "llamacpp", "mlx", "gguf", "local")
 SMALL_MODEL_MARKERS = ("haiku", "mini", "nano", "gemma", "phi", "qwen", "mistral")
@@ -456,6 +459,38 @@ def attach_evidence_metadata(finding: dict[str, Any], raw: str) -> dict[str, Any
     if evidence:
         finding["evidence"] = evidence
     return finding
+
+
+def canonical_finding_identity(finding: dict[str, Any]) -> dict[str, Any]:
+    paths = finding.get("evidence_paths")
+    if not isinstance(paths, list):
+        paths = []
+    normalized = sorted({str(path) for path in paths if path is not None and str(path)})
+    rule_id = finding.get("rule_id")
+    risk = finding.get("risk")
+    return {
+        "evidence_paths": normalized,
+        "risk": risk if isinstance(risk, str) else "",
+        "rule_id": rule_id if isinstance(rule_id, str) else "",
+    }
+
+
+def finding_fingerprint(finding: dict[str, Any]) -> str:
+    payload = json.dumps(canonical_finding_identity(finding), separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return "sha256:" + hashlib.sha256(payload).hexdigest()
+
+
+def attach_finding_fingerprint(finding: dict[str, Any]) -> dict[str, Any]:
+    finding["fingerprint"] = finding_fingerprint(finding)
+    return finding
+
+
+def neutralize_mentions(text: str) -> str:
+    return text.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
+
+
+def markdown_compare_cell(value: Any, *, code: bool = False) -> str:
+    return neutralize_mentions(markdown_cell(value, code=code))
 
 
 def markdown_cell(value: Any, *, code: bool = False) -> str:
@@ -941,6 +976,9 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
         source_locations = finding.get("source_locations") or []
         resolved_lines = [location.get("line", 1) for location in source_locations if isinstance(location, dict) and location.get("line", 1) > 1]
         source_line = min(resolved_lines) if resolved_lines else 1
+        fingerprint = finding.get("fingerprint") if isinstance(finding.get("fingerprint"), str) else finding_fingerprint(finding)
+        if not FINGERPRINT_RE.fullmatch(fingerprint):
+            fingerprint = finding_fingerprint(finding)
         result = {
             "ruleId": rule_id or finding.get("risk", "agent-security-finding"),
             "level": sarif_level(finding.get("severity", "warn")),
@@ -959,7 +997,9 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
                 "evidence_paths": evidence_paths_from_finding(finding),
                 "source_locations": source_locations,
                 "schema_adapter": schema_adapter,
+                "fingerprint": fingerprint,
             },
+            "partialFingerprints": {"agentSecurityFinding": fingerprint},
         }
         if finding.get("policy"):
             result["properties"]["policy"] = finding["policy"]
@@ -985,6 +1025,157 @@ def render_sarif(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def comparison_usage(message: str) -> int:
+    print(f"config_risk_summary.py: error: {message}", file=sys.stderr)
+    return 2
+
+
+def load_comparison_report(path: str) -> dict[str, Any]:
+    report_path = Path(path)
+    try:
+        st = report_path.stat()
+    except OSError as exc:
+        raise ValueError(f"cannot read report {path}: {exc}") from exc
+    if not report_path.is_file() or report_path.is_symlink():
+        raise ValueError(f"report {path} must be a regular file")
+    if st.st_size > MAX_COMPARISON_REPORT_BYTES:
+        raise ValueError(f"report {path} exceeds {MAX_COMPARISON_REPORT_BYTES} bytes")
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"report {path} is not valid JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"report {path} must be a JSON object")
+    findings = payload.get("findings")
+    if not isinstance(findings, list):
+        raise ValueError(f"report {path} is missing a findings array")
+    return payload
+
+
+def indexed_active_findings(report: dict[str, Any], label: str) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    findings = report.get("findings")
+    if not isinstance(findings, list):
+        raise ValueError(f"{label} report is missing a findings array")
+    for finding in findings:
+        if not isinstance(finding, dict):
+            raise ValueError(f"{label} report findings must be objects")
+        annotated = dict(finding)
+        attach_finding_fingerprint(annotated)
+        fingerprint = annotated["fingerprint"]
+        if fingerprint in indexed:
+            raise ValueError(f"{label} report contains duplicate finding identities")
+        indexed[fingerprint] = annotated
+    return indexed
+
+
+def compare_reports(before_path: str, after_path: str) -> dict[str, Any]:
+    before = load_comparison_report(before_path)
+    after = load_comparison_report(after_path)
+    before_index = indexed_active_findings(before, "before")
+    after_index = indexed_active_findings(after, "after")
+    new_keys = sorted(set(after_index) - set(before_index))
+    resolved_keys = sorted(set(before_index) - set(after_index))
+    persisting_keys = sorted(set(before_index) & set(after_index))
+    new_findings = [after_index[key] for key in new_keys]
+    persisting_findings = [after_index[key] for key in persisting_keys]
+    resolved_findings = [before_index[key] for key in resolved_keys]
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "ok": not new_findings,
+        "before": before_path,
+        "after": after_path,
+        "counts": {
+            "before": len(before_index),
+            "after": len(after_index),
+            "new": len(new_findings),
+            "persisting": len(persisting_findings),
+            "resolved": len(resolved_findings),
+        },
+        "new_findings": new_findings,
+        "persisting_findings": persisting_findings,
+        "resolved_findings": resolved_findings,
+        "writes_to_reports": False,
+    }
+
+
+def render_comparison_markdown(result: dict[str, Any]) -> str:
+    counts = result["counts"]
+    lines = [
+        "# Config risk report comparison",
+        "",
+        f"- **Before:** {markdown_compare_cell(result['before'])}",
+        f"- **After:** {markdown_compare_cell(result['after'])}",
+        f"- **New:** {counts['new']}",
+        f"- **Persisting:** {counts['persisting']}",
+        f"- **Resolved:** {counts['resolved']}",
+        f"- **Writes to reports:** `{str(result['writes_to_reports']).lower()}`",
+        "",
+    ]
+    for title, key in (
+        ("New findings", "new_findings"),
+        ("Persisting findings", "persisting_findings"),
+        ("Resolved findings", "resolved_findings"),
+    ):
+        lines.append(f"## {title}")
+        lines.append("")
+        findings = result[key]
+        if not findings:
+            lines.append("None.")
+            lines.append("")
+            continue
+        lines.append("| fingerprint | rule | risk |")
+        lines.append("| --- | --- | --- |")
+        for finding in findings:
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        markdown_compare_cell(finding.get("fingerprint"), code=True),
+                        markdown_compare_cell(finding.get("rule_id")),
+                        markdown_compare_cell(finding.get("risk")),
+                    ]
+                )
+                + " |"
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def run_compare_reports(args: argparse.Namespace) -> int:
+    incompatible = []
+    if args.strict:
+        incompatible.append("--strict")
+    if args.fail_on:
+        incompatible.append("--fail-on")
+    if args.baseline:
+        incompatible.append("--baseline")
+    if args.policy:
+        incompatible.append("--policy")
+    if args.generate_baseline:
+        incompatible.append("--generate-baseline")
+    if args.fail_on_stale_baseline:
+        incompatible.append("--fail-on-stale-baseline")
+    if args.fail_on_expired_baseline:
+        incompatible.append("--fail-on-expired-baseline")
+    if incompatible:
+        return comparison_usage("--compare-reports cannot be combined with " + ", ".join(incompatible))
+    if args.format == "sarif":
+        return comparison_usage("--compare-reports does not support SARIF; use json or markdown")
+    before_path, after_path = args.compare_reports
+    try:
+        result = compare_reports(before_path, after_path)
+    except ValueError as exc:
+        return comparison_usage(str(exc))
+    if args.format == "markdown":
+        print(render_comparison_markdown(result))
+    else:
+        print(json.dumps(result, separators=(",", ":") if args.compact else None, indent=None if args.compact else 2, sort_keys=True))
+    if args.fail_on_new and result["new_findings"]:
+        return 1
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--strict", action="store_true", help="exit nonzero on error/high/critical findings")
@@ -996,7 +1187,18 @@ def main() -> int:
     parser.add_argument("--generate-baseline", action="store_true", help="emit a baseline for current findings with TODO lifecycle metadata")
     parser.add_argument("--fail-on-stale-baseline", action="store_true", help="exit nonzero when baseline entries no longer match findings")
     parser.add_argument("--fail-on-expired-baseline", action="store_true", help="exit nonzero when baseline entries are expired")
+    parser.add_argument(
+        "--compare-reports",
+        nargs=2,
+        metavar=("BEFORE", "AFTER"),
+        help="compare two stored JSON config-risk reports without scanning stdin",
+    )
+    parser.add_argument("--fail-on-new", action="store_true", help="exit nonzero when comparison finds new active findings")
     args = parser.parse_args()
+    if args.compare_reports:
+        return run_compare_reports(args)
+    if args.fail_on_new:
+        return comparison_usage("--fail-on-new requires --compare-reports")
 
     policy, policy_errors = load_policy(args.policy)
     baseline_suppressions, baseline_errors = load_baseline(args.baseline)
@@ -1140,6 +1342,9 @@ def main() -> int:
         return 0
     active_baseline_suppressions, baseline_lifecycle = classify_baseline_lifecycle(policy_active_findings, baseline_suppressions)
     active_findings, suppressed_findings = apply_baseline_suppressions(policy_active_findings, active_baseline_suppressions)
+    for group in (active_findings, suppressed_findings, policy_suppressed_findings):
+        for finding in group:
+            attach_finding_fingerprint(finding)
     severity_order = {"error": 5, "critical": 4, "high": 3, "warn": 2, "info": 1}
     summary = {
         "schema_version": SCHEMA_VERSION,

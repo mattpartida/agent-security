@@ -110,14 +110,13 @@ def test_invalid_policy_reports_structured_error_before_scanning(tmp_path: Path)
 
     assert proc.returncode == 1
     data = json.loads(proc.stdout)
-    assert data["findings"] == [
-        {
-            "severity": "error",
-            "risk": "invalid_policy",
-            "message": "policy severity override for ASG-002 must be one of: critical, error, high, info, warn",
-            "field": "severity_overrides.ASG-002",
-        }
-    ]
+    assert len(data["findings"]) == 1
+    finding = data["findings"][0]
+    assert finding["severity"] == "error"
+    assert finding["risk"] == "invalid_policy"
+    assert finding["message"] == "policy severity override for ASG-002 must be one of: critical, error, high, info, warn"
+    assert finding["field"] == "severity_overrides.ASG-002"
+    assert finding["fingerprint"].startswith("sha256:")
     assert data["policy_suppressed_findings"] == []
     assert data["policy_suppressed_summary"] == {"count": 0, "counts": {}}
 

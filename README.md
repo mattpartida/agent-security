@@ -92,6 +92,25 @@ from the input text; unresolved paths fall back to line `1`. Markdown reports
 also include policy/baseline suppression counts and baseline owner lifecycle
 tables when those inputs are supplied.
 
+JSON findings include a deterministic `fingerprint` for exact identity. Compare
+two stored JSON reports without scanning stdin:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --compare-reports before.json after.json
+```
+
+Fail CI only when the after report introduces new active findings:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --compare-reports before.json after.json \
+  --fail-on-new
+```
+
+See [`docs/report-comparison.md`](docs/report-comparison.md) for fingerprint
+semantics, Markdown comparison output, and fail-closed validation.
+
 Score prompt-injection exposure from a config/status JSON object:
 
 ```bash

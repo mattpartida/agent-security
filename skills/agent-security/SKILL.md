@@ -355,6 +355,7 @@ openclaw status --deep --json | python3 skills/agent-security/scripts/config_ris
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --policy examples/policies/agent-security-policy.json
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --generate-baseline > agent-security-baseline.json
 openclaw status --deep --json | python3 skills/agent-security/scripts/config_risk_summary.py --baseline agent-security-baseline.json --fail-on-expired-baseline
+python3 skills/agent-security/scripts/config_risk_summary.py --compare-reports before.json after.json --fail-on-new
 openclaw status --deep --json | python3 skills/agent-security/scripts/score_prompt_injection_exposure.py
 
 # Expected input: untrusted or suspicious text on stdin

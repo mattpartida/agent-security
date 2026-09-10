@@ -61,6 +61,18 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
 
 For release branches or security-sensitive config changes, run `--strict` locally so high or critical findings fail before CI does.
 
+## Stored report comparison
+
+Use [`examples/ci/github-actions/agent-security-compare-reports.yml`](../examples/ci/github-actions/agent-security-compare-reports.yml) when a previous JSON report is stored as a baseline artifact. Replace the placeholder paths with the previous and current `config_risk_summary.py` JSON outputs:
+
+```bash
+python3 skills/agent-security/scripts/config_risk_summary.py \
+  --compare-reports before.json after.json \
+  --fail-on-new
+```
+
+`--fail-on-new` exits non-zero only for new active findings. Default comparison remains exit `0` and does not rewrite the input reports. See [`docs/report-comparison.md`](report-comparison.md) for fingerprint identity and validation failures.
+
 ## Minimal permissions
 
 | Integration | Minimum permissions | Notes |

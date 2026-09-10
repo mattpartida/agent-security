@@ -368,6 +368,35 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 **Status:** Planned
 **Goal:** Define an optional, non-executable integrity envelope for exported JSON/SARIF reports so downstream consumers can detect accidental or malicious report mutation.
 
+## Phase 21: Stored config-risk report comparison
+
+**Status:** Shipped
+**Goal:** Let CI and reviewers compare two stored `config_risk_summary.py` JSON reports by stable finding identity without mutating those reports or scanning stdin.
+
+### Shipped scope
+
+1. Added additive `fingerprint` values (`sha256:<64 hex>`) to JSON findings and SARIF result `properties` / `partialFingerprints`.
+2. Added `--compare-reports BEFORE AFTER` to classify active findings as new, persisting, or resolved.
+3. Added `--fail-on-new` so comparison can fail CI only when new active findings appear, while still writing the full comparison to stdout.
+4. Derived fingerprints for legacy reports that omit them, rejected duplicate identities and missing `findings` arrays, and kept `writes_to_reports: false`.
+5. Added Markdown comparison output with pipe and mass-mention escaping, plus [`docs/report-comparison.md`](report-comparison.md) and [`examples/ci/github-actions/agent-security-compare-reports.yml`](../examples/ci/github-actions/agent-security-compare-reports.yml).
+
+### Acceptance criteria
+
+- JSON findings include a stable `sha256:` fingerprint over `rule_id`, `risk`, and sorted `evidence_paths`.
+- Comparison classifies new, persisting, and resolved active findings without reading stdin.
+- `--fail-on-new` exits non-zero only for new findings; usage and validation errors exit `2`.
+
+## Phase 22: SARIF output for remaining scanners
+
+**Status:** Planned
+**Goal:** Add SARIF 2.1.0 output to prompt-injection signal and exposure scanners so GitHub Code Scanning can consume those results without wrapping `config_risk_summary.py`.
+
+## Phase 23: Combined local preflight CLI
+
+**Status:** Planned
+**Goal:** Provide a single dependency-light preflight command that runs config-risk, exposure scoring, and prompt-injection signal checks together for local and CI smoke jobs.
+
 ## Implementation order
 
 1. Finish or merge PRs that already cover roadmap work before starting duplicate branches.
@@ -378,6 +407,7 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 6. Treat Phases 9 through 12 as adoption-at-scale work: baselines first, then policy, lifecycle cleanup, and broader schema adapters.
 7. Treat Phases 14 through 17 as prompt-corpus maintenance polish: strict gates, review inventories, category guidance, and export packets.
 8. Treat Phases 18 through 20 as release and artifact-integrity work: reproducible packages first, then reviewed release automation and optional report envelopes.
+9. Treat Phases 21 through 23 as scanner-adoption work after packaging: stored-report comparison first, then remaining SARIF coverage and a combined preflight CLI.
 
 ## Verification checklist for roadmap changes
 
