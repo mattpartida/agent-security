@@ -408,8 +408,15 @@ Before starting new roadmap work, check open PRs and avoid duplicating any branc
 
 ## Phase 23: Combined local preflight CLI
 
-**Status:** Planned
+**Status:** Shipped
 **Goal:** Provide a single dependency-light preflight command that runs config-risk, exposure scoring, and prompt-injection signal checks together for local and CI smoke jobs.
+
+### Completed
+
+1. Added `skills/agent-security/scripts/preflight.py` wrapping the three existing scanner CLIs via subprocess with JSON default output.
+2. Added `--format markdown|sarif` combined summaries and `--strict` fail-on-high-risk gates without changing child scanner defaults.
+3. Missing `--config` / `--text` inputs fail closed with empty stdout.
+4. Documented local/CI smoke usage in README, `docs/ci-integration.md`, and `skills/agent-security/SKILL.md`.
 
 ## Implementation order
 

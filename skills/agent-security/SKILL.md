@@ -343,6 +343,7 @@ Use these helper resources when useful:
 - `scripts/config_risk_summary.py`
 - `scripts/score_prompt_injection_exposure.py`
 - `scripts/flag_prompt_injection_signals.py`
+- `scripts/preflight.py`
 - `scripts/summarize_prompt_injection_corpus.py`
 - `../healthcheck/scripts/summarize_openclaw_posture.py`
 - `../healthcheck/scripts/parse_openclaw_audit.py`
@@ -358,6 +359,7 @@ openclaw status --deep --json | python3 skills/agent-security/scripts/config_ris
 python3 skills/agent-security/scripts/config_risk_summary.py --compare-reports before.json after.json --fail-on-new
 openclaw status --deep --json | python3 skills/agent-security/scripts/score_prompt_injection_exposure.py --format sarif
 python3 skills/agent-security/scripts/flag_prompt_injection_signals.py --format sarif < suspicious-content.txt
+python3 skills/agent-security/scripts/preflight.py --config examples/hardened-agent-config.json --text suspicious-content.txt
 
 # Expected input: untrusted or suspicious text on stdin
 python3 skills/agent-security/scripts/flag_prompt_injection_signals.py < suspicious-content.txt
