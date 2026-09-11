@@ -68,7 +68,22 @@ python3 skills/agent-security/scripts/config_risk_summary.py \
   < path/to/agent-config.json
 ```
 
-For release branches or security-sensitive config changes, run `--strict` locally so high or critical findings fail before CI does.
+To smoke all three scanners in one command, wrap config-risk, exposure scoring, and prompt-injection signals:
+
+```bash
+python3 skills/agent-security/scripts/preflight.py \
+  --config path/to/agent-config.json \
+  --text path/to/untrusted-content.txt
+```
+
+For release branches or security-sensitive config changes, run `--strict` locally so high or critical findings fail before CI does:
+
+```bash
+python3 skills/agent-security/scripts/preflight.py \
+  --strict \
+  --config path/to/agent-config.json \
+  --text path/to/untrusted-content.txt
+```
 
 ## Stored report comparison
 

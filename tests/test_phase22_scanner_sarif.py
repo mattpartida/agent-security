@@ -127,7 +127,6 @@ def test_phase22_docs_workflow_and_roadmap() -> None:
     assert "score_prompt_injection_exposure.py --format sarif" in readme
     assert "## Phase 22:" in roadmap
     assert "**Status:** Shipped" in roadmap.split("## Phase 22:", 1)[1].split("## Phase 23:", 1)[0]
-    assert "**Status:** Planned" in roadmap.split("## Phase 23:", 1)[1]
     assert "--format sarif" in changelog
     assert "flag_prompt_injection_signals.py" in changelog
     assert "score_prompt_injection_exposure.py" in changelog

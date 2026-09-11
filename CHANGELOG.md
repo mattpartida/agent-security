@@ -20,6 +20,7 @@ This project follows semantic-versioning guidance once recurring releases are ta
 
 ### Script CLI changes
 
+- Added Phase 23 `skills/agent-security/scripts/preflight.py` to run config-risk, exposure scoring, and prompt-injection signal checks together for local and CI smoke jobs, with JSON default, Markdown summaries, `--format sarif`, `--strict`, and fail-closed missing inputs.
 - Added `--format sarif` to `skills/agent-security/scripts/flag_prompt_injection_signals.py` and `skills/agent-security/scripts/score_prompt_injection_exposure.py` for GitHub Code Scanning while keeping JSON as the default.
 - Added additive JSON/SARIF finding `fingerprint` values plus `--compare-reports` and `--fail-on-new` to `skills/agent-security/scripts/config_risk_summary.py` for stored-report regression gates.
 - Replaced ad-hoc ZIP packaging with reproducible `scripts/package_skills.py`, deterministic `dist/MANIFEST.json` release metadata, and a non-mutating `--check` drift gate while preserving `./package-skills.sh`.
